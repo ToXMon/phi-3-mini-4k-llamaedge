@@ -1,0 +1,53 @@
+# ─────────────────────────────────────────────
+# Akash SDL - Phi-3-mini-4k LlamaEdge (GPU)
+# OpenAI-compatible API server with CUDA acceleration
+# ─────────────────────────────────────────────
+version: "2.0"
+
+services:
+  phi3-api:
+    image: ghcr.io/toxmon/phi-3-mini-4k-llamaedge:cuda12-63008de
+    expose:
+      - port: 8080
+        as: 80
+        to:
+          - global: true
+        http_options:
+          max_body_size: 10485760
+    env:
+      - WASMEDGE_PLUGIN_PATH=/root/.wasmedge/plugin
+
+profiles:
+  compute:
+    phi3-api:
+      resources:
+        cpu:
+          units: 2
+        memory:
+          size: 8Gi
+        storage:
+          size: 1Gi
+        gpu:
+          units: 1
+          attributes:
+            vendor:
+              nvidia:
+                - model: a100
+                - model: h100
+                - model: rtx4090
+                - model: rtx4080
+                - model: rtx3090
+                - model: v100
+
+  placement:
+    akash:
+      pricing:
+        phi3-api:
+          denom: uakt
+          amount: 20000
+
+deployment:
+  phi3-api:
+    akash:
+      profile: phi3-api
+      count: 1
