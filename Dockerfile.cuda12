@@ -12,6 +12,7 @@ ARG LLAMAEDGE_VERSION=0.29.0
 # Install dependencies
 RUN apt-get update && apt-get install -y \
     curl \
+    git \
     ca-certificates \
     build-essential \
     pkg-config \
