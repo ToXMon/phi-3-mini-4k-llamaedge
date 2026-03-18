@@ -32,8 +32,8 @@ RUN curl -L \
     "https://github.com/LlamaEdge/LlamaEdge/releases/download/${LLAMAEDGE_VERSION}/llama-api-server.wasm" \
     -o /llama-api-server.wasm
 
-# Install WasmEdge
-RUN curl -sSf https://raw.githubusercontent.com/WasmEdge/WasmEdge/master/utils/install.sh | bash -s -- -v $WASMEDGE_VERSION
+# Install WasmEdge with wasi_nn-ggml plugin (required for --nn-preload flag)
+RUN curl -sSf https://raw.githubusercontent.com/WasmEdge/WasmEdge/master/utils/install.sh | bash -s -- -v $WASMEDGE_VERSION --plugins wasi_nn-ggml
 
 # Download chatbot-ui (baked-in web interface served at /)
 RUN curl -L \
@@ -48,7 +48,7 @@ RUN curl -L \
 # ─────────────────────────────────────────────
 FROM ubuntu:22.04
 
-# Copy WasmEdge runtime
+# Copy WasmEdge runtime (includes wasi_nn-ggml plugin)
 COPY --from=builder /root/.wasmedge /root/.wasmedge
 
 # Copy models and WASM
@@ -70,6 +70,7 @@ EXPOSE 8080
 
 # Serve chatbot-ui at root (/) and API at /v1/*
 # NOTE: Must use full path to wasmedge because exec form doesn't use shell (PATH is ignored)
+# NOTE: --nn-preload requires wasi_nn-ggml plugin (installed above)
 ENTRYPOINT ["/root/.wasmedge/bin/wasmedge", \
   "--dir", ".:/app", \
   "--dir", "chatbot-ui:/app/chatbot-ui", \
