@@ -1,36 +1,37 @@
-# ─────────────────────────────────────────────
-# LlamaEdge — Phi-3-mini-4k + all-MiniLM (CPU)
-# OpenAI-compatible API server on port 8080
-# chatbot-ui baked in
-# ─────────────────────────────────────────────
+# LlamaEdge Phi-3-mini-4k-instruct + all-MiniLM-L6-v2
+# CPU-only image (works on any x86_64 host)
 
+# ─────────────────────────────────────────────
+# Builder stage — downloads models + WasmEdge
+# ─────────────────────────────────────────────
 FROM ubuntu:22.04 AS builder
 
 ARG WASMEDGE_VERSION=0.14.1
 ARG LLAMAEDGE_VERSION=0.29.0
 
-ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && apt-get install -y curl ca-certificates && rm -rf /var/lib/apt/lists/*
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install WasmEdge runtime + GGML plugin
-RUN curl -sSf https://raw.githubusercontent.com/WasmEdge/WasmEdge/master/utils/install_v2.sh \
-    | bash -s -- -v ${WASMEDGE_VERSION} && \
-    echo "WasmEdge installed"
-
-# Download Phi-3-mini-4k-instruct Q5_K_M (2.82GB — best quality/size)
-RUN curl -L --progress-bar \
+# Download Phi-3-mini-4k-instruct Q5_K_M (2.62 GiB)
+RUN curl -L \
     "https://huggingface.co/second-state/Phi-3-mini-4k-instruct-GGUF/resolve/main/Phi-3-mini-4k-instruct-Q5_K_M.gguf" \
     -o /Phi-3-mini-4k-instruct-Q5_K_M.gguf
 
-# Download all-MiniLM-L6-v2 embedding model (enables /v1/embeddings endpoint)
-RUN curl -L --progress-bar \
-    "https://huggingface.co/second-state/All-MiniLM-L6-v2-Embedding-GGUF/resolve/main/all-MiniLM-L6-v2-ggml-model-f16.gguf" \
+# Download all-MiniLM-L6-v2 embedding model (43 MiB)
+RUN curl -L \
+    "https://huggingface.co/gaunernst/all-MiniLM-L6-v2/resolve/main/ggml-model-f16.gguf" \
     -o /all-MiniLM-L6-v2-ggml-model-f16.gguf
 
-# Download llama-api-server.wasm (OpenAI-compatible API server binary)
+# Download LlamaEdge API server WASM
 RUN curl -L \
     "https://github.com/LlamaEdge/LlamaEdge/releases/download/${LLAMAEDGE_VERSION}/llama-api-server.wasm" \
     -o /llama-api-server.wasm
+
+# Install WasmEdge
+RUN curl -sSf https://raw.githubusercontent.com/WasmEdge/WasmEdge/master/utils/install.sh | bash -s -- -v $WASMEDGE_VERSION
 
 # Download chatbot-ui (baked-in web interface served at /)
 RUN curl -L \
@@ -45,32 +46,29 @@ RUN curl -L \
 # ─────────────────────────────────────────────
 FROM ubuntu:22.04
 
-ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && apt-get install -y \
-    libopenblas-dev \
-    ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
+# Copy WasmEdge runtime
+COPY --from=builder /root/.wasmedge /root/.wasmedge
 
-# Copy WasmEdge runtime binaries
-COPY --from=builder /root/.wasmedge/bin/wasmedge /usr/local/bin/wasmedge
-COPY --from=builder /root/.wasmedge/lib/ /usr/local/lib/
-COPY --from=builder /root/.wasmedge/plugin/ /root/.wasmedge/plugin/
+# Copy models and WASM
+COPY --from=builder /Phi-3-mini-4k-instruct-Q5_K_M.gguf /app/
+COPY --from=builder /all-MiniLM-L6-v2-ggml-model-f16.gguf /app/
+COPY --from=builder /llama-api-server.wasm /app/
 
-# Copy app artifacts
-COPY --from=builder /llama-api-server.wasm     /app/llama-api-server.wasm
-COPY --from=builder /Phi-3-mini-4k-instruct-Q5_K_M.gguf /app/Phi-3-mini-4k-instruct-Q5_K_M.gguf
-COPY --from=builder /all-MiniLM-L6-v2-ggml-model-f16.gguf /app/all-MiniLM-L6-v2-ggml-model-f16.gguf
+# Copy chatbot-ui
 COPY --from=builder /chatbot-ui /app/chatbot-ui
+
+ENV PATH="/root/.wasmedge/bin:$PATH"
+ENV LD_LIBRARY_PATH="/root/.wasmedge/lib:$LD_LIBRARY_PATH"
 
 RUN ldconfig
 
 WORKDIR /app
 EXPOSE 8080
 
-# chat model: phi-3-chat template, 4000 ctx
-# embedding model: all-MiniLM, 384 ctx
+# Serve chatbot-ui at root (/) and API at /v1/*
 ENTRYPOINT ["wasmedge", \
   "--dir", ".:/app", \
+  "--dir", "chatbot-ui:/app/chatbot-ui", \
   "--nn-preload", "default:GGML:AUTO:Phi-3-mini-4k-instruct-Q5_K_M.gguf", \
   "--nn-preload", "embedding:GGML:AUTO:all-MiniLM-L6-v2-ggml-model-f16.gguf", \
   "/app/llama-api-server.wasm", \
