@@ -44,7 +44,7 @@ RUN curl -L \
     "https://github.com/LlamaEdge/chatbot-ui/releases/latest/download/chatbot-ui.tar.gz" \
     -o /chatbot-ui.tar.gz && \
     mkdir /chatbot-ui && \
-    tar xzf /chatbot-ui.tar.gz -C /chatbot-ui && \
+    tar xzf /chatbot-ui.tar.gz -C /chatbot-ui --strip-components=1 && \
     rm /chatbot-ui.tar.gz
 
 # Runtime stage
