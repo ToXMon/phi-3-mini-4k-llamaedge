@@ -1,0 +1,67 @@
+# ─────────────────────────────────────────────
+# LlamaEdge — Phi-3-mini-4k + all-MiniLM (CUDA 12)
+# OpenAI-compatible API server on port 8080
+# For Akash GPU providers / NVIDIA hosts
+# ─────────────────────────────────────────────
+
+FROM nvidia/cuda:12.2.0-base-ubuntu22.04 AS builder
+
+ARG WASMEDGE_VERSION=0.14.1
+ARG LLAMAEDGE_VERSION=0.4.5
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y curl ca-certificates && rm -rf /var/lib/apt/lists/*
+
+RUN curl -sSf https://raw.githubusercontent.com/WasmEdge/WasmEdge/master/utils/install_v2.sh \
+    | bash -s -- -v ${WASMEDGE_VERSION} --plugins wasi_nn-ggml
+
+RUN curl -L --progress-bar \
+    "https://huggingface.co/second-state/Phi-3-mini-4k-instruct-GGUF/resolve/main/Phi-3-mini-4k-instruct-Q5_K_M.gguf" \
+    -o /Phi-3-mini-4k-instruct-Q5_K_M.gguf
+
+RUN curl -L --progress-bar \
+    "https://huggingface.co/second-state/All-MiniLM-L6-v2-Embedding-GGUF/resolve/main/all-MiniLM-L6-v2-ggml-model-f16.gguf" \
+    -o /all-MiniLM-L6-v2-ggml-model-f16.gguf
+
+RUN curl -L \
+    "https://github.com/LlamaEdge/LlamaEdge/releases/download/${LLAMAEDGE_VERSION}/llama-api-server.wasm" \
+    -o /llama-api-server.wasm
+
+RUN curl -L \
+    "https://github.com/LlamaEdge/chatbot-ui/releases/latest/download/chatbot-ui.tar.gz" \
+    -o /chatbot-ui.tar.gz && \
+    mkdir /chatbot-ui && \
+    tar xzf /chatbot-ui.tar.gz -C /chatbot-ui && \
+    rm /chatbot-ui.tar.gz
+
+FROM nvidia/cuda:12.2.0-base-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y \
+    libopenblas-dev \
+    ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /root/.wasmedge/bin/wasmedge /usr/local/bin/wasmedge
+COPY --from=builder /root/.wasmedge/lib/ /usr/local/lib/
+COPY --from=builder /root/.wasmedge/plugin/ /root/.wasmedge/plugin/
+COPY --from=builder /llama-api-server.wasm     /app/llama-api-server.wasm
+COPY --from=builder /Phi-3-mini-4k-instruct-Q5_K_M.gguf /app/Phi-3-mini-4k-instruct-Q5_K_M.gguf
+COPY --from=builder /all-MiniLM-L6-v2-ggml-model-f16.gguf /app/all-MiniLM-L6-v2-ggml-model-f16.gguf
+COPY --from=builder /chatbot-ui /app/chatbot-ui
+
+RUN ldconfig
+
+WORKDIR /app
+EXPOSE 8080
+
+ENTRYPOINT ["wasmedge", \
+  "--dir", ".:/app", \
+  "--nn-preload", "default:GGML:AUTO:Phi-3-mini-4k-instruct-Q5_K_M.gguf", \
+  "--nn-preload", "embedding:GGML:AUTO:all-MiniLM-L6-v2-ggml-model-f16.gguf", \
+  "/app/llama-api-server.wasm", \
+  "--model-name", "phi-3-mini,all-MiniLM-L6-v2", \
+  "--prompt-template", "phi-3-chat", \
+  "--ctx-size", "4000,384", \
+  "--port", "8080", \
+  "--web-ui", "/app/chatbot-ui"]
