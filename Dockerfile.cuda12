@@ -78,7 +78,7 @@ ENTRYPOINT ["wasmedge", \
   "--nn-preload", "embedding:GGML:AUTO:all-MiniLM-L6-v2-ggml-model-f16.gguf", \
   "/app/llama-api-server.wasm", \
   "--model-name", "phi-3-mini,all-MiniLM-L6-v2", \
-  "--prompt-template", "phi-3-chat", \
+  "--prompt-template", "phi-3-chat,embedding", \
   "--ctx-size", "4000,384", \
   "--port", "8080", \
   "--web-ui", "/app/chatbot-ui"]
