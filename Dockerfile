@@ -7,7 +7,7 @@
 FROM ubuntu:22.04 AS builder
 
 ARG WASMEDGE_VERSION=0.14.1
-ARG LLAMAEDGE_VERSION=0.4.5
+ARG LLAMAEDGE_VERSION=0.29.0
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y curl ca-certificates && rm -rf /var/lib/apt/lists/*
