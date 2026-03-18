@@ -64,6 +64,7 @@ COPY --from=builder /chatbot-ui /app/chatbot-ui
 
 ENV PATH="/root/.wasmedge/bin:$PATH"
 ENV LD_LIBRARY_PATH="/root/.wasmedge/lib:$LD_LIBRARY_PATH"
+ENV WASMEDGE_PLUGIN_PATH="/root/.wasmedge/plugin"
 
 RUN ldconfig
 
@@ -71,9 +72,11 @@ WORKDIR /app
 EXPOSE 8080
 
 # Serve chatbot-ui at root (/) and API at /v1/*
-ENTRYPOINT ["wasmedge", \
+# NOTE: Must use full path to wasmedge because exec form doesn't use shell (PATH is ignored)
+ENTRYPOINT ["/root/.wasmedge/bin/wasmedge", \
   "--dir", ".:/app", \
   "--dir", "chatbot-ui:/app/chatbot-ui", \
+  "--env", "WASMEDGE_PLUGIN_PATH=/root/.wasmedge/plugin", \
   "--nn-preload", "default:GGML:AUTO:Phi-3-mini-4k-instruct-Q5_K_M.gguf", \
   "--nn-preload", "embedding:GGML:AUTO:all-MiniLM-L6-v2-ggml-model-f16.gguf", \
   "/app/llama-api-server.wasm", \
