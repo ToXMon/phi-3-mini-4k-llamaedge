@@ -35,9 +35,9 @@ RUN tmpdir=$(mktemp -d) \
     "https://github.com/WasmEdge/WasmEdge/releases/download/${WASMEDGE_VERSION}/WasmEdge-plugin-wasi_nn-ggml-${WASMEDGE_VERSION}-manylinux_2_28_x86_64.tar.gz" \
     && tar xzf /tmp/nn_plugin.tar.gz -C "$tmpdir" \
     && rm /tmp/nn_plugin.tar.gz \
-    && find "$tmpdir" -name "libwasmedgePluginWasiNnGgml.so" -exec cp {} /opt/wasmedge/plugin/ \; \
+    && find "$tmpdir" -name "libwasmedgePluginWasiNN.so" -exec cp {} /opt/wasmedge/plugin/ \; \
     && rm -rf "$tmpdir" \
-    && test -f /opt/wasmedge/plugin/libwasmedgePluginWasiNnGgml.so \
+    && test -f /opt/wasmedge/plugin/libwasmedgePluginWasiNN.so \
     || { echo "FATAL: wasi_nn-ggml plugin .so not found in release tarball"; exit 1; }
 
 # ── Phi-3-mini-4k-instruct Q5_K_M (2.62 GiB) ──
