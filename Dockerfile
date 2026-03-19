@@ -5,7 +5,7 @@
 # Downgrade WasmEdge 0.15.0 → 0.14.1 to fix ABI mismatch.
 # LlamaEdge 0.29.0 WASM binary was compiled against 0.14.x SDK;
 # 0.15.0 has breaking API changes causing "free(): invalid pointer".
-# Plugin .so name: libwasmedgePluginWasiNnGgml.so (0.14.x naming)
+# Plugin .so name: libwasmedgePluginWasiNN.so (same name in 0.14.1 and 0.15.0)
 
 FROM ubuntu:22.04 AS builder
 
@@ -38,7 +38,7 @@ RUN tmpdir=$(mktemp -d) \
     && mkdir -p /opt/wasmedge/plugin \
     && find "$tmpdir" \( -type f -o -type l \) -name "*.so*" -exec cp -a {} /opt/wasmedge/plugin/ \; \
     && rm -rf "$tmpdir" \
-    && test -f /opt/wasmedge/plugin/libwasmedgePluginWasiNnGgml.so \
+    && test -f /opt/wasmedge/plugin/libwasmedgePluginWasiNN.so \
     || { echo "FATAL: plugin .so not found"; exit 1; }
 
 # ── Phi-3-mini-4k-instruct Q5_K_M (2.62 GiB) ──
