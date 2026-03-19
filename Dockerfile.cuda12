@@ -48,7 +48,7 @@ RUN mkdir -p /app \
 
 # ── all-MiniLM-L6-v2 embedding model (43 MiB) ──
 RUN curl -sL \
-    "https://huggingface.co/second-state/All-MiniLM-L6-v2-Embedding-GGUF/resolve/main/ggml-model-f16.gguf" \
+    "https://huggingface.co/second-state/All-MiniLM-L6-v2-Embedding-GGUF/resolve/main/all-MiniLM-L6-v2-ggml-model-f16.gguf" \
     -o /app/all-MiniLM-L6-v2-ggml-model-f16.gguf
 
 # ── LlamaEdge API server WASM ──
