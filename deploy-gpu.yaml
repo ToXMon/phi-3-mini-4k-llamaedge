@@ -1,12 +1,12 @@
 # ─────────────────────────────────────────────
 # Akash SDL - Phi-3-mini-4k LlamaEdge (GPU)
-# OpenAI-compatible API server with CUDA acceleration
+# Ground-up rewrite: WasmEdge 0.15.0 + direct plugin download
 # ─────────────────────────────────────────────
 version: "2.0"
 
 services:
   phi3-api:
-    image: ghcr.io/toxmon/phi-3-mini-4k-llamaedge:cuda12-69ce38e
+    image: ghcr.io/toxmon/phi-3-mini-4k-llamaedge:cuda12
     expose:
       - port: 8080
         as: 80
@@ -15,7 +15,7 @@ services:
         http_options:
           max_body_size: 10485760
     env:
-      - WASMEDGE_PLUGIN_PATH=/root/.wasmedge/plugin
+      - WASMEDGE_PLUGIN_PATH=/opt/wasmedge/plugin
 
 profiles:
   compute:

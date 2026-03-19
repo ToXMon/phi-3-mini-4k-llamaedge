@@ -1,89 +1,82 @@
 # LlamaEdge Phi-3-mini-4k-instruct + all-MiniLM-L6-v2
-# CUDA 12 GPU-accelerated image
+# CUDA 12 GPU image — WasmEdge 0.15.0 with wasi_nn-ggml plugin
+#
+# NOTE: Pre-built wasi_nn-ggml plugin uses CPU GGML backend.
+# For CUDA acceleration, the plugin must be compiled from source with
+# -DWASMEDGE_PLUGIN_WASI_NN_GGML_LLAMA_CUBLAS=ON
+# This image uses the CPU plugin on a CUDA base for future CUDA build.
 
-# ─────────────────────────────────────────────
-# Builder stage — downloads models + WasmEdge
-# ─────────────────────────────────────────────
-FROM nvidia/cuda:12.2.0-devel-ubuntu22.04 AS builder
+FROM ubuntu:22.04 AS builder
 
-ARG WASMEDGE_VERSION=0.14.1
+ARG WASMEDGE_VERSION=0.15.0
 ARG LLAMAEDGE_VERSION=0.29.0
 
-# Install dependencies
 RUN apt-get update && apt-get install -y \
-    curl \
-    git \
-    python3 \
-    ca-certificates \
-    build-essential \
-    pkg-config \
-    libopenblas-dev \
+    curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Download Phi-3-mini-4k-instruct Q5_K_M (2.62 GiB)
-RUN curl -L \
-    "https://huggingface.co/second-state/Phi-3-mini-4k-instruct-GGUF/resolve/main/Phi-3-mini-4k-instruct-Q5_K_M.gguf" \
-    -o /Phi-3-mini-4k-instruct-Q5_K_M.gguf
+# ── WasmEdge runtime (direct download) ──
+RUN curl -sL -o /tmp/wasmedge.tar.gz \
+    "https://github.com/WasmEdge/WasmEdge/releases/download/${WASMEDGE_VERSION}/WasmEdge-${WASMEDGE_VERSION}-manylinux_2_28_x86_64.tar.gz" \
+    && mkdir -p /opt/wasmedge \
+    && tar xzf /tmp/wasmedge.tar.gz -C /opt/wasmedge --strip-components=1 \
+    && rm /tmp/wasmedge.tar.gz \
+    && test -f /opt/wasmedge/bin/wasmedge || { echo "FATAL: wasmedge binary not found"; exit 1; }
 
-# Download all-MiniLM-L6-v2 embedding model (43 MiB)
-RUN curl -L \
-    "https://huggingface.co/gaunernst/all-MiniLM-L6-v2/resolve/main/ggml-model-f16.gguf" \
-    -o /all-MiniLM-L6-v2-ggml-model-f16.gguf
+# ── wasi_nn-ggml plugin (direct download) ──
+RUN curl -sL -o /tmp/nn_plugin.tar.gz \
+    "https://github.com/WasmEdge/WasmEdge/releases/download/${WASMEDGE_VERSION}/WasmEdge-plugin-wasi_nn-ggml-${WASMEDGE_VERSION}-manylinux_2_28_x86_64.tar.gz" \
+    && tmpdir=$(mktemp -d) \
+    && tar xzf /tmp/nn_plugin.tar.gz -C "$tmpdir" \
+    && mkdir -p /opt/wasmedge/plugin \
+    && find "$tmpdir" -name "libwasmedgePluginWasiNnGgml.so" -exec cp {} /opt/wasmedge/plugin/ \; \
+    && rm -rf /tmp/nn_plugin.tar.gz "$tmpdir" \
+    && test -f /opt/wasmedge/plugin/libwasmedgePluginWasiNnGgml.so \
+    || { echo "FATAL: wasi_nn-ggml plugin .so not found"; exit 1; }
 
-# Download LlamaEdge API server WASM
-RUN curl -L \
-    "https://github.com/LlamaEdge/LlamaEdge/releases/download/${LLAMAEDGE_VERSION}/llama-api-server.wasm" \
-    -o /llama-api-server.wasm
+# ── Models ──
+RUN mkdir -p /app \
+    && curl -sL "https://huggingface.co/second-state/Phi-3-mini-4k-instruct-GGUF/resolve/main/Phi-3-mini-4k-instruct-Q5_K_M.gguf" -o /app/Phi-3-mini-4k-instruct-Q5_K_M.gguf
 
-# Install WasmEdge with wasi_nn-ggml plugin (required for --nn-preload flag)
-# The plugin will use CUDA at runtime if NVIDIA GPU is available
-RUN curl -sSf https://raw.githubusercontent.com/WasmEdge/WasmEdge/master/utils/install.sh | bash -s -- -v $WASMEDGE_VERSION --plugins wasi_nn-ggml
+RUN curl -sL "https://huggingface.co/gaunernst/all-MiniLM-L6-v2/resolve/main/ggml-model-f16.gguf" -o /app/all-MiniLM-L6-v2-ggml-model-f16.gguf
 
-# Download chatbot-ui (baked-in web interface served at /)
-RUN curl -L \
-    "https://github.com/LlamaEdge/chatbot-ui/releases/latest/download/chatbot-ui.tar.gz" \
-    -o /chatbot-ui.tar.gz && \
-    mkdir /chatbot-ui && \
-    tar xzf /chatbot-ui.tar.gz -C /chatbot-ui --strip-components=1 && \
-    rm /chatbot-ui.tar.gz
+# ── LlamaEdge API server WASM ──
+RUN curl -sL "https://github.com/second-state/LlamaEdge/releases/download/${LLAMAEDGE_VERSION}/llama-api-server.wasm" -o /app/llama-api-server.wasm
+
+# ── Chatbot UI ──
+RUN curl -sL "https://github.com/LlamaEdge/chatbot-ui/releases/latest/download/chatbot-ui.tar.gz" -o /tmp/chatbot-ui.tar.gz \
+    && mkdir -p /app/chatbot-ui \
+    && tar xzf /tmp/chatbot-ui.tar.gz -C /app/chatbot-ui --strip-components=1 \
+    && rm /tmp/chatbot-ui.tar.gz
 
 # ─────────────────────────────────────────────
-# Runtime stage — CUDA 12 with WasmEdge GGML plugin
+# Runtime stage — CUDA 12 runtime
 # ─────────────────────────────────────────────
 FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
 
-# Copy WasmEdge runtime (includes wasi_nn-ggml plugin)
-COPY --from=builder /root/.wasmedge /root/.wasmedge
+RUN apt-get update && apt-get install -y \
+    libgomp1 ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && ldconfig
 
-# Copy models and WASM
-COPY --from=builder /Phi-3-mini-4k-instruct-Q5_K_M.gguf /app/
-COPY --from=builder /all-MiniLM-L6-v2-ggml-model-f16.gguf /app/
-COPY --from=builder /llama-api-server.wasm /app/
+COPY --from=builder /opt/wasmedge /opt/wasmedge
+COPY --from=builder /app /app
 
-# Copy chatbot-ui
-COPY --from=builder /chatbot-ui /app/chatbot-ui
-
-ENV PATH="/root/.wasmedge/bin:$PATH"
-ENV LD_LIBRARY_PATH="/root/.wasmedge/lib:$LD_LIBRARY_PATH"
-ENV WASMEDGE_PLUGIN_PATH="/root/.wasmedge/plugin"
-
-RUN ldconfig
+ENV PATH="/opt/wasmedge/bin:${PATH}"
+ENV LD_LIBRARY_PATH="/opt/wasmedge/lib:${LD_LIBRARY_PATH}"
+ENV WASMEDGE_PLUGIN_PATH="/opt/wasmedge/plugin"
 
 WORKDIR /app
 EXPOSE 8080
 
-# Serve chatbot-ui at root (/) and API at /v1/*
-# NOTE: Must use full path to wasmedge because exec form doesn't use shell (PATH is ignored)
-# NOTE: --nn-preload requires wasi_nn-ggml plugin (installed above)
-ENTRYPOINT ["/root/.wasmedge/bin/wasmedge", \
-  "--dir", ".:/app", \
-  "--dir", "chatbot-ui:/app/chatbot-ui", \
-  "--env", "WASMEDGE_PLUGIN_PATH=/root/.wasmedge/plugin", \
-  "--nn-preload", "default:GGML:AUTO:Phi-3-mini-4k-instruct-Q5_K_M.gguf", \
-  "--nn-preload", "embedding:GGML:AUTO:all-MiniLM-L6-v2-ggml-model-f16.gguf", \
-  "/app/llama-api-server.wasm", \
-  "--model-name", "phi-3-mini,all-MiniLM-L6-v2", \
-  "--prompt-template", "phi-3-chat,embedding", \
-  "--ctx-size", "4000,384", \
-  "--port", "8080", \
-  "--web-ui", "/app/chatbot-ui"]
+ENTRYPOINT ["/opt/wasmedge/bin/wasmedge", \
+    "--dir", ".:/app", \
+    "--dir", "chatbot-ui:/app/chatbot-ui", \
+    "--nn-preload", "default:GGML:AUTO:Phi-3-mini-4k-instruct-Q5_K_M.gguf", \
+    "--nn-preload", "embedding:GGML:AUTO:all-MiniLM-L6-v2-ggml-model-f16.gguf", \
+    "llama-api-server.wasm", \
+    "--model-name", "phi-3-mini,all-MiniLM-L6-v2", \
+    "--prompt-template", "phi-3-chat,embedding", \
+    "--ctx-size", "4000,384", \
+    "--port", "8080", \
+    "--web-ui", "chatbot-ui"]

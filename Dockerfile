@@ -1,85 +1,97 @@
 # LlamaEdge Phi-3-mini-4k-instruct + all-MiniLM-L6-v2
-# CPU-only image (works on any x86_64 host)
+# CPU-only image — WasmEdge 0.15.0 with wasi_nn-ggml plugin
+#
+# ROOT CAUSE FIX: Previous version used WasmEdge 0.14.1 which has NO
+# pre-built wasi_nn-ggml plugin assets. The installer silently failed.
+# Version 0.15.0 is the FIRST release with pre-built wasi_nn-ggml plugin.
+# We bypass the installer entirely and download assets directly.
 
-# ─────────────────────────────────────────────
-# Builder stage — downloads models + WasmEdge
-# ─────────────────────────────────────────────
 FROM ubuntu:22.04 AS builder
 
-ARG WASMEDGE_VERSION=0.14.1
+ARG WASMEDGE_VERSION=0.15.0
 ARG LLAMAEDGE_VERSION=0.29.0
 
-# Install dependencies
 RUN apt-get update && apt-get install -y \
-    curl \
-    git \
-    python3 \
-    ca-certificates \
+    curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Download Phi-3-mini-4k-instruct Q5_K_M (2.62 GiB)
-RUN curl -L \
+# ── WasmEdge runtime (direct download, no installer script) ──
+RUN curl -sL -o /tmp/wasmedge.tar.gz \
+    "https://github.com/WasmEdge/WasmEdge/releases/download/${WASMEDGE_VERSION}/WasmEdge-${WASMEDGE_VERSION}-manylinux_2_28_x86_64.tar.gz" \
+    && mkdir -p /opt/wasmedge \
+    && tar xzf /tmp/wasmedge.tar.gz -C /opt/wasmedge --strip-components=1 \
+    && rm /tmp/wasmedge.tar.gz \
+    && test -f /opt/wasmedge/bin/wasmedge || { echo "FATAL: wasmedge binary not found"; exit 1; }
+
+# ── wasi_nn-ggml plugin (direct download, find .so dynamically) ──
+RUN curl -sL -o /tmp/nn_plugin.tar.gz \
+    "https://github.com/WasmEdge/WasmEdge/releases/download/${WASMEDGE_VERSION}/WasmEdge-plugin-wasi_nn-ggml-${WASMEDGE_VERSION}-manylinux_2_28_x86_64.tar.gz" \
+    && tmpdir=$(mktemp -d) \
+    && tar xzf /tmp/nn_plugin.tar.gz -C "$tmpdir" \
+    && mkdir -p /opt/wasmedge/plugin \
+    && find "$tmpdir" -name "libwasmedgePluginWasiNnGgml.so" -exec cp {} /opt/wasmedge/plugin/ \; \
+    && rm -rf /tmp/nn_plugin.tar.gz "$tmpdir" \
+    && test -f /opt/wasmedge/plugin/libwasmedgePluginWasiNnGgml.so \
+    || { echo "FATAL: wasi_nn-ggml plugin .so not found in release tarball"; exit 1; }
+
+# ── Phi-3-mini-4k-instruct Q5_K_M (2.62 GiB) ──
+RUN mkdir -p /app \
+    && curl -sL \
     "https://huggingface.co/second-state/Phi-3-mini-4k-instruct-GGUF/resolve/main/Phi-3-mini-4k-instruct-Q5_K_M.gguf" \
-    -o /Phi-3-mini-4k-instruct-Q5_K_M.gguf
+    -o /app/Phi-3-mini-4k-instruct-Q5_K_M.gguf
 
-# Download all-MiniLM-L6-v2 embedding model (43 MiB)
-RUN curl -L \
+# ── all-MiniLM-L6-v2 embedding model (43 MiB) ──
+RUN curl -sL \
     "https://huggingface.co/gaunernst/all-MiniLM-L6-v2/resolve/main/ggml-model-f16.gguf" \
-    -o /all-MiniLM-L6-v2-ggml-model-f16.gguf
+    -o /app/all-MiniLM-L6-v2-ggml-model-f16.gguf
 
-# Download LlamaEdge API server WASM
-RUN curl -L \
-    "https://github.com/LlamaEdge/LlamaEdge/releases/download/${LLAMAEDGE_VERSION}/llama-api-server.wasm" \
-    -o /llama-api-server.wasm
+# ── LlamaEdge API server WASM ──
+RUN curl -sL \
+    "https://github.com/second-state/LlamaEdge/releases/download/${LLAMAEDGE_VERSION}/llama-api-server.wasm" \
+    -o /app/llama-api-server.wasm
 
-# Install WasmEdge with wasi_nn-ggml plugin (required for --nn-preload flag)
-RUN curl -sSf https://raw.githubusercontent.com/WasmEdge/WasmEdge/master/utils/install.sh | bash -s -- -v $WASMEDGE_VERSION --plugins wasi_nn-ggml
-
-# Download chatbot-ui (baked-in web interface served at /)
-RUN curl -L \
+# ── Chatbot UI ──
+RUN curl -sL \
     "https://github.com/LlamaEdge/chatbot-ui/releases/latest/download/chatbot-ui.tar.gz" \
-    -o /chatbot-ui.tar.gz && \
-    mkdir /chatbot-ui && \
-    tar xzf /chatbot-ui.tar.gz -C /chatbot-ui --strip-components=1 && \
-    rm /chatbot-ui.tar.gz
+    -o /tmp/chatbot-ui.tar.gz \
+    && mkdir -p /app/chatbot-ui \
+    && tar xzf /tmp/chatbot-ui.tar.gz -C /app/chatbot-ui --strip-components=1 \
+    && rm /tmp/chatbot-ui.tar.gz
 
 # ─────────────────────────────────────────────
-# Runtime stage — lean Ubuntu, no Python
+# Runtime stage — lean Ubuntu 22.04
 # ─────────────────────────────────────────────
 FROM ubuntu:22.04
 
-# Copy WasmEdge runtime (includes wasi_nn-ggml plugin)
-COPY --from=builder /root/.wasmedge /root/.wasmedge
+# Runtime deps: libgomp for OpenMP (ggml CPU parallelism)
+RUN apt-get update && apt-get install -y \
+    libgomp1 \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && ldconfig
 
-# Copy models and WASM
-COPY --from=builder /Phi-3-mini-4k-instruct-Q5_K_M.gguf /app/
-COPY --from=builder /all-MiniLM-L6-v2-ggml-model-f16.gguf /app/
-COPY --from=builder /llama-api-server.wasm /app/
+COPY --from=builder /opt/wasmedge /opt/wasmedge
+COPY --from=builder /app /app
 
-# Copy chatbot-ui
-COPY --from=builder /chatbot-ui /app/chatbot-ui
-
-ENV PATH="/root/.wasmedge/bin:$PATH"
-ENV LD_LIBRARY_PATH="/root/.wasmedge/lib:$LD_LIBRARY_PATH"
-ENV WASMEDGE_PLUGIN_PATH="/root/.wasmedge/plugin"
-
-RUN ldconfig
+ENV PATH="/opt/wasmedge/bin:${PATH}"
+ENV LD_LIBRARY_PATH="/opt/wasmedge/lib:${LD_LIBRARY_PATH}"
+ENV WASMEDGE_PLUGIN_PATH="/opt/wasmedge/plugin"
 
 WORKDIR /app
 EXPOSE 8080
 
-# Serve chatbot-ui at root (/) and API at /v1/*
-# NOTE: Must use full path to wasmedge because exec form doesn't use shell (PATH is ignored)
-# NOTE: --nn-preload requires wasi_nn-ggml plugin (installed above)
-ENTRYPOINT ["/root/.wasmedge/bin/wasmedge", \
-  "--dir", ".:/app", \
-  "--dir", "chatbot-ui:/app/chatbot-ui", \
-  "--env", "WASMEDGE_PLUGIN_PATH=/root/.wasmedge/plugin", \
-  "--nn-preload", "default:GGML:AUTO:Phi-3-mini-4k-instruct-Q5_K_M.gguf", \
-  "--nn-preload", "embedding:GGML:AUTO:all-MiniLM-L6-v2-ggml-model-f16.gguf", \
-  "/app/llama-api-server.wasm", \
-  "--model-name", "phi-3-mini,all-MiniLM-L6-v2", \
-  "--prompt-template", "phi-3-chat,embedding", \
-  "--ctx-size", "4000,384", \
-  "--port", "8080", \
-  "--web-ui", "/app/chatbot-ui"]
+# Exec form with full path to wasmedge binary (no PATH dependency)
+# --dir guest:host maps WASM sandbox paths to host filesystem
+# --web-ui uses GUEST path (chatbot-ui), not host path
+# WASMEDGE_PLUGIN_PATH is a host env var, NOT passed to WASM via --env
+ENTRYPOINT ["/opt/wasmedge/bin/wasmedge", \
+    "--dir", ".:/app", \
+    "--dir", "chatbot-ui:/app/chatbot-ui", \
+    "--nn-preload", "default:GGML:AUTO:Phi-3-mini-4k-instruct-Q5_K_M.gguf", \
+    "--nn-preload", "embedding:GGML:AUTO:all-MiniLM-L6-v2-ggml-model-f16.gguf", \
+    "llama-api-server.wasm", \
+    "--model-name", "phi-3-mini,all-MiniLM-L6-v2", \
+    "--prompt-template", "phi-3-chat,embedding", \
+    "--ctx-size", "4000,384", \
+    "--port", "8080", \
+    "--web-ui", "chatbot-ui"]
