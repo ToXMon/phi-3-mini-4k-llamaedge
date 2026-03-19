@@ -6,7 +6,7 @@ version: "2.0"
 
 services:
   phi3-api:
-    image: ghcr.io/toxmon/phi-3-mini-4k-llamaedge:48e4858
+    image: ghcr.io/toxmon/phi-3-mini-4k-llamaedge:a0f78b8
     expose:
       - port: 8080
         as: 80
