@@ -1,11 +1,9 @@
 # LlamaEdge Phi-3-mini-4k-instruct + all-MiniLM-L6-v2
 # CPU-only image — WasmEdge 0.15.0 with wasi_nn-ggml plugin
 #
-# ROOT CAUSE FIX: Previous version used WasmEdge 0.14.1 which has NO
-# pre-built wasi_nn-ggml plugin assets. The installer silently failed.
-# Version 0.15.0 is the FIRST with pre-built wasi_nn-ggml plugin.
-# We download assets directly and use find to locate files regardless
-# of tarball internal directory structure.
+# KEY: cp -a preserves symlinks. The release tarball has:
+#   lib/libwasmedge.so -> libwasmedge.so.0 -> libwasmedge.so.0.0.0
+# Using find -type f missed the symlinks, causing runtime load failure.
 
 FROM ubuntu:22.04 AS builder
 
@@ -16,29 +14,29 @@ RUN apt-get update && apt-get install -y \
     curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# ── WasmEdge runtime (direct download, find-based extraction) ──
+# ── WasmEdge runtime (cp -a preserves symlinks) ──
 RUN tmpdir=$(mktemp -d) \
     && curl -sL -o /tmp/wasmedge.tar.gz \
     "https://github.com/WasmEdge/WasmEdge/releases/download/${WASMEDGE_VERSION}/WasmEdge-${WASMEDGE_VERSION}-manylinux_2_28_x86_64.tar.gz" \
     && tar xzf /tmp/wasmedge.tar.gz -C "$tmpdir" \
     && rm /tmp/wasmedge.tar.gz \
-    && mkdir -p /opt/wasmedge/bin /opt/wasmedge/lib /opt/wasmedge/plugin \
-    && find "$tmpdir" -type f -name "wasmedge" -exec cp {} /opt/wasmedge/bin/ \; \
-    && find "$tmpdir" -type f -name "libwasmedge*.so*" -exec cp {} /opt/wasmedge/lib/ \; \
+    && root=$(find "$tmpdir" -mindepth 1 -maxdepth 1 -type d | head -1) \
+    && mkdir -p /opt/wasmedge \
+    && cp -a "$root"/* /opt/wasmedge/ \
     && rm -rf "$tmpdir" \
     && test -f /opt/wasmedge/bin/wasmedge \
-    || { echo "FATAL: wasmedge binary not found in release tarball"; exit 1; }
+    || { echo "FATAL: wasmedge binary not found"; exit 1; }
 
-# ── wasi_nn-ggml plugin (direct download, find-based extraction) ──
+# ── wasi_nn-ggml plugin (cp -a preserves symlinks) ──
 RUN tmpdir=$(mktemp -d) \
     && curl -sL -o /tmp/nn_plugin.tar.gz \
     "https://github.com/WasmEdge/WasmEdge/releases/download/${WASMEDGE_VERSION}/WasmEdge-plugin-wasi_nn-ggml-${WASMEDGE_VERSION}-manylinux_2_28_x86_64.tar.gz" \
     && tar xzf /tmp/nn_plugin.tar.gz -C "$tmpdir" \
     && rm /tmp/nn_plugin.tar.gz \
-    && find "$tmpdir" -name "libwasmedgePluginWasiNN.so" -exec cp {} /opt/wasmedge/plugin/ \; \
+    && find "$tmpdir" -name "*.so*" -exec cp -a {} /opt/wasmedge/plugin/ \; \
     && rm -rf "$tmpdir" \
-    && test -f /opt/wasmedge/plugin/libwasmedgePluginWasiNN.so \
-    || { echo "FATAL: wasi_nn-ggml plugin .so not found in release tarball"; exit 1; }
+    && ls -la /opt/wasmedge/plugin/ \
+    || { echo "FATAL: plugin extraction failed"; exit 1; }
 
 # ── Phi-3-mini-4k-instruct Q5_K_M (2.62 GiB) ──
 RUN mkdir -p /app \

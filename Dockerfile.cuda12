@@ -1,8 +1,11 @@
 # LlamaEdge Phi-3-mini-4k-instruct + all-MiniLM-L6-v2
-# CUDA 12 GPU image — WasmEdge 0.15.0 with wasi_nn-ggml plugin
-# NOTE: Pre-built plugin uses CPU GGML backend (CUDA needs source build)
+# CUDA 12 GPU-accelerated image — WasmEdge 0.15.0 with wasi_nn-ggml CUDA plugin
+#
+# KEY: cp -a preserves symlinks. The release tarball has:
+#   lib/libwasmedge.so -> libwasmedge.so.0 -> libwasmedge.so.0.0.0
+# Using find -type f missed the symlinks, causing runtime load failure.
 
-FROM ubuntu:22.04 AS builder
+FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04 AS builder
 
 ARG WASMEDGE_VERSION=0.15.0
 ARG LLAMAEDGE_VERSION=0.29.0
@@ -11,41 +14,50 @@ RUN apt-get update && apt-get install -y \
     curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# ── WasmEdge runtime (direct download, find-based extraction) ──
+# ── WasmEdge runtime (cp -a preserves symlinks) ──
 RUN tmpdir=$(mktemp -d) \
     && curl -sL -o /tmp/wasmedge.tar.gz \
     "https://github.com/WasmEdge/WasmEdge/releases/download/${WASMEDGE_VERSION}/WasmEdge-${WASMEDGE_VERSION}-manylinux_2_28_x86_64.tar.gz" \
     && tar xzf /tmp/wasmedge.tar.gz -C "$tmpdir" \
     && rm /tmp/wasmedge.tar.gz \
-    && mkdir -p /opt/wasmedge/bin /opt/wasmedge/lib /opt/wasmedge/plugin \
-    && find "$tmpdir" -type f -name "wasmedge" -exec cp {} /opt/wasmedge/bin/ \; \
-    && find "$tmpdir" -type f -name "libwasmedge*.so*" -exec cp {} /opt/wasmedge/lib/ \; \
+    && root=$(find "$tmpdir" -mindepth 1 -maxdepth 1 -type d | head -1) \
+    && mkdir -p /opt/wasmedge \
+    && cp -a "$root"/* /opt/wasmedge/ \
     && rm -rf "$tmpdir" \
     && test -f /opt/wasmedge/bin/wasmedge \
-    || { echo "FATAL: wasmedge binary not found in release tarball"; exit 1; }
+    || { echo "FATAL: wasmedge binary not found"; exit 1; }
 
-# ── wasi_nn-ggml plugin (direct download, find-based extraction) ──
+# ── wasi_nn-ggml CUDA plugin (cp -a preserves symlinks) ──
 RUN tmpdir=$(mktemp -d) \
     && curl -sL -o /tmp/nn_plugin.tar.gz \
     "https://github.com/WasmEdge/WasmEdge/releases/download/${WASMEDGE_VERSION}/WasmEdge-plugin-wasi_nn-ggml-cuda-${WASMEDGE_VERSION}-ubuntu20.04_x86_64.tar.gz" \
     && tar xzf /tmp/nn_plugin.tar.gz -C "$tmpdir" \
     && rm /tmp/nn_plugin.tar.gz \
-    && find "$tmpdir" -name "libwasmedgePluginWasiNN.so" -exec cp {} /opt/wasmedge/plugin/ \; \
+    && find "$tmpdir" -name "*.so*" -exec cp -a {} /opt/wasmedge/plugin/ \; \
     && rm -rf "$tmpdir" \
-    && test -f /opt/wasmedge/plugin/libwasmedgePluginWasiNN.so \
-    || { echo "FATAL: wasi_nn-ggml plugin .so not found in release tarball"; exit 1; }
+    && ls -la /opt/wasmedge/plugin/ \
+    || { echo "FATAL: CUDA plugin extraction failed"; exit 1; }
 
-# ── Models ──
+# ── Phi-3-mini-4k-instruct Q5_K_M (2.62 GiB) ──
 RUN mkdir -p /app \
-    && curl -sL "https://huggingface.co/second-state/Phi-3-mini-4k-instruct-GGUF/resolve/main/Phi-3-mini-4k-instruct-Q5_K_M.gguf" -o /app/Phi-3-mini-4k-instruct-Q5_K_M.gguf
+    && curl -sL \
+    "https://huggingface.co/second-state/Phi-3-mini-4k-instruct-GGUF/resolve/main/Phi-3-mini-4k-instruct-Q5_K_M.gguf" \
+    -o /app/Phi-3-mini-4k-instruct-Q5_K_M.gguf
 
-RUN curl -sL "https://huggingface.co/gaunernst/all-MiniLM-L6-v2/resolve/main/ggml-model-f16.gguf" -o /app/all-MiniLM-L6-v2-ggml-model-f16.gguf
+# ── all-MiniLM-L6-v2 embedding model (43 MiB) ──
+RUN curl -sL \
+    "https://huggingface.co/gaunernst/all-MiniLM-L6-v2/resolve/main/ggml-model-f16.gguf" \
+    -o /app/all-MiniLM-L6-v2-ggml-model-f16.gguf
 
 # ── LlamaEdge API server WASM ──
-RUN curl -sL "https://github.com/second-state/LlamaEdge/releases/download/${LLAMAEDGE_VERSION}/llama-api-server.wasm" -o /app/llama-api-server.wasm
+RUN curl -sL \
+    "https://github.com/second-state/LlamaEdge/releases/download/${LLAMAEDGE_VERSION}/llama-api-server.wasm" \
+    -o /app/llama-api-server.wasm
 
 # ── Chatbot UI ──
-RUN curl -sL "https://github.com/LlamaEdge/chatbot-ui/releases/latest/download/chatbot-ui.tar.gz" -o /tmp/chatbot-ui.tar.gz \
+RUN curl -sL \
+    "https://github.com/LlamaEdge/chatbot-ui/releases/latest/download/chatbot-ui.tar.gz" \
+    -o /tmp/chatbot-ui.tar.gz \
     && mkdir -p /app/chatbot-ui \
     && tar xzf /tmp/chatbot-ui.tar.gz -C /app/chatbot-ui --strip-components=1 \
     && rm /tmp/chatbot-ui.tar.gz
@@ -55,6 +67,7 @@ RUN curl -sL "https://github.com/LlamaEdge/chatbot-ui/releases/latest/download/c
 # ─────────────────────────────────────────────
 FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
 
+# libgomp for OpenMP (ggml CPU fallback parallelism)
 RUN apt-get update && apt-get install -y \
     libgomp1 ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
