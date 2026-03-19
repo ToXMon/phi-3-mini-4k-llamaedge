@@ -1,9 +1,8 @@
 # LlamaEdge Phi-3-mini-4k-instruct + all-MiniLM-L6-v2
-# CUDA 12 GPU-accelerated image — WasmEdge 0.15.0 with wasi_nn-ggml CUDA plugin
+# CUDA 12 GPU image — WasmEdge 0.15.0 with wasi_nn-ggml CUDA plugin
 #
-# KEY: cp -a preserves symlinks. The release tarball has:
-#   lib/libwasmedge.so -> libwasmedge.so.0 -> libwasmedge.so.0.0.0
-# Using find -type f missed the symlinks, causing runtime load failure.
+# FIX: find WITHOUT -type f finds symlinks too.
+# cp -a preserves symlinks when copying.
 
 FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04 AS builder
 
@@ -14,29 +13,30 @@ RUN apt-get update && apt-get install -y \
     curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# ── WasmEdge runtime (cp -a preserves symlinks) ──
+# ── WasmEdge runtime (find without -type f + cp -a preserves symlinks) ──
 RUN tmpdir=$(mktemp -d) \
     && curl -sL -o /tmp/wasmedge.tar.gz \
     "https://github.com/WasmEdge/WasmEdge/releases/download/${WASMEDGE_VERSION}/WasmEdge-${WASMEDGE_VERSION}-manylinux_2_28_x86_64.tar.gz" \
     && tar xzf /tmp/wasmedge.tar.gz -C "$tmpdir" \
     && rm /tmp/wasmedge.tar.gz \
-    && root=$(find "$tmpdir" -mindepth 1 -maxdepth 1 -type d | head -1) \
-    && mkdir -p /opt/wasmedge \
-    && cp -a "$root"/* /opt/wasmedge/ \
+    && mkdir -p /opt/wasmedge/bin /opt/wasmedge/lib \
+    && find "$tmpdir" -name "wasmedge" ! -path "*/lib/*" -exec cp -a {} /opt/wasmedge/bin/ \; \
+    && find "$tmpdir" -name "libwasmedge*" -exec cp -a {} /opt/wasmedge/lib/ \; \
     && rm -rf "$tmpdir" \
     && test -f /opt/wasmedge/bin/wasmedge \
     || { echo "FATAL: wasmedge binary not found"; exit 1; }
 
-# ── wasi_nn-ggml CUDA plugin (cp -a preserves symlinks) ──
+# ── wasi_nn-ggml CUDA plugin (find without -type f + cp -a preserves symlinks) ──
 RUN tmpdir=$(mktemp -d) \
     && curl -sL -o /tmp/nn_plugin.tar.gz \
     "https://github.com/WasmEdge/WasmEdge/releases/download/${WASMEDGE_VERSION}/WasmEdge-plugin-wasi_nn-ggml-cuda-${WASMEDGE_VERSION}-ubuntu20.04_x86_64.tar.gz" \
     && tar xzf /tmp/nn_plugin.tar.gz -C "$tmpdir" \
     && rm /tmp/nn_plugin.tar.gz \
+    && mkdir -p /opt/wasmedge/plugin \
     && find "$tmpdir" -name "*.so*" -exec cp -a {} /opt/wasmedge/plugin/ \; \
     && rm -rf "$tmpdir" \
-    && ls -la /opt/wasmedge/plugin/ \
-    || { echo "FATAL: CUDA plugin extraction failed"; exit 1; }
+    && test -f /opt/wasmedge/plugin/libwasmedgePluginWasiNN.so \
+    || { echo "FATAL: CUDA plugin .so not found"; exit 1; }
 
 # ── Phi-3-mini-4k-instruct Q5_K_M (2.62 GiB) ──
 RUN mkdir -p /app \
@@ -63,11 +63,10 @@ RUN curl -sL \
     && rm /tmp/chatbot-ui.tar.gz
 
 # ─────────────────────────────────────────────
-# Runtime stage — CUDA 12 runtime
+# Runtime stage
 # ─────────────────────────────────────────────
 FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
 
-# libgomp for OpenMP (ggml CPU fallback parallelism)
 RUN apt-get update && apt-get install -y \
     libgomp1 ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
