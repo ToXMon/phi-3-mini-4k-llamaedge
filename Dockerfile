@@ -3,8 +3,9 @@
 #
 # ROOT CAUSE FIX: Previous version used WasmEdge 0.14.1 which has NO
 # pre-built wasi_nn-ggml plugin assets. The installer silently failed.
-# Version 0.15.0 is the FIRST release with pre-built wasi_nn-ggml plugin.
-# We bypass the installer entirely and download assets directly.
+# Version 0.15.0 is the FIRST with pre-built wasi_nn-ggml plugin.
+# We download assets directly and use find to locate files regardless
+# of tarball internal directory structure.
 
 FROM ubuntu:22.04 AS builder
 
@@ -15,22 +16,27 @@ RUN apt-get update && apt-get install -y \
     curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# ── WasmEdge runtime (direct download, no installer script) ──
-RUN curl -sL -o /tmp/wasmedge.tar.gz \
+# ── WasmEdge runtime (direct download, find-based extraction) ──
+RUN tmpdir=$(mktemp -d) \
+    && curl -sL -o /tmp/wasmedge.tar.gz \
     "https://github.com/WasmEdge/WasmEdge/releases/download/${WASMEDGE_VERSION}/WasmEdge-${WASMEDGE_VERSION}-manylinux_2_28_x86_64.tar.gz" \
-    && mkdir -p /opt/wasmedge \
-    && tar xzf /tmp/wasmedge.tar.gz -C /opt/wasmedge --strip-components=1 \
+    && tar xzf /tmp/wasmedge.tar.gz -C "$tmpdir" \
     && rm /tmp/wasmedge.tar.gz \
-    && test -f /opt/wasmedge/bin/wasmedge || { echo "FATAL: wasmedge binary not found"; exit 1; }
+    && mkdir -p /opt/wasmedge/bin /opt/wasmedge/lib /opt/wasmedge/plugin \
+    && find "$tmpdir" -type f -name "wasmedge" -exec cp {} /opt/wasmedge/bin/ \; \
+    && find "$tmpdir" -type f -name "libwasmedge*.so*" -exec cp {} /opt/wasmedge/lib/ \; \
+    && rm -rf "$tmpdir" \
+    && test -f /opt/wasmedge/bin/wasmedge \
+    || { echo "FATAL: wasmedge binary not found in release tarball"; exit 1; }
 
-# ── wasi_nn-ggml plugin (direct download, find .so dynamically) ──
-RUN curl -sL -o /tmp/nn_plugin.tar.gz \
+# ── wasi_nn-ggml plugin (direct download, find-based extraction) ──
+RUN tmpdir=$(mktemp -d) \
+    && curl -sL -o /tmp/nn_plugin.tar.gz \
     "https://github.com/WasmEdge/WasmEdge/releases/download/${WASMEDGE_VERSION}/WasmEdge-plugin-wasi_nn-ggml-${WASMEDGE_VERSION}-manylinux_2_28_x86_64.tar.gz" \
-    && tmpdir=$(mktemp -d) \
     && tar xzf /tmp/nn_plugin.tar.gz -C "$tmpdir" \
-    && mkdir -p /opt/wasmedge/plugin \
+    && rm /tmp/nn_plugin.tar.gz \
     && find "$tmpdir" -name "libwasmedgePluginWasiNnGgml.so" -exec cp {} /opt/wasmedge/plugin/ \; \
-    && rm -rf /tmp/nn_plugin.tar.gz "$tmpdir" \
+    && rm -rf "$tmpdir" \
     && test -f /opt/wasmedge/plugin/libwasmedgePluginWasiNnGgml.so \
     || { echo "FATAL: wasi_nn-ggml plugin .so not found in release tarball"; exit 1; }
 
@@ -63,10 +69,9 @@ RUN curl -sL \
 # ─────────────────────────────────────────────
 FROM ubuntu:22.04
 
-# Runtime deps: libgomp for OpenMP (ggml CPU parallelism)
+# libgomp for OpenMP (ggml CPU parallelism)
 RUN apt-get update && apt-get install -y \
-    libgomp1 \
-    ca-certificates \
+    libgomp1 ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && ldconfig
 
@@ -74,16 +79,12 @@ COPY --from=builder /opt/wasmedge /opt/wasmedge
 COPY --from=builder /app /app
 
 ENV PATH="/opt/wasmedge/bin:${PATH}"
-ENV LD_LIBRARY_PATH="/opt/wasmedge/lib:${LD_LIBRARY_PATH}"
+ENV LD_LIBRARY_PATH="/opt/wasmedge/lib"
 ENV WASMEDGE_PLUGIN_PATH="/opt/wasmedge/plugin"
 
 WORKDIR /app
 EXPOSE 8080
 
-# Exec form with full path to wasmedge binary (no PATH dependency)
-# --dir guest:host maps WASM sandbox paths to host filesystem
-# --web-ui uses GUEST path (chatbot-ui), not host path
-# WASMEDGE_PLUGIN_PATH is a host env var, NOT passed to WASM via --env
 ENTRYPOINT ["/opt/wasmedge/bin/wasmedge", \
     "--dir", ".:/app", \
     "--dir", "chatbot-ui:/app/chatbot-ui", \
