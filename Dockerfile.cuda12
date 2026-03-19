@@ -1,8 +1,9 @@
 # LlamaEdge Phi-3-mini-4k-instruct + all-MiniLM-L6-v2
 # CUDA 12 GPU image — WasmEdge 0.15.0 with wasi_nn-ggml CUDA plugin
 #
-# FIX: find WITHOUT -type f finds symlinks too.
-# cp -a preserves symlinks when copying.
+# Based on 73d125c (which built successfully) with ONE fix:
+# lib .so copy uses (-type f -o -type l) to include symlinks
+# and cp -a to preserve them.
 
 FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04 AS builder
 
@@ -13,27 +14,27 @@ RUN apt-get update && apt-get install -y \
     curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# ── WasmEdge runtime (find without -type f + cp -a preserves symlinks) ──
+# ── WasmEdge runtime ──
 RUN tmpdir=$(mktemp -d) \
     && curl -sL -o /tmp/wasmedge.tar.gz \
     "https://github.com/WasmEdge/WasmEdge/releases/download/${WASMEDGE_VERSION}/WasmEdge-${WASMEDGE_VERSION}-manylinux_2_28_x86_64.tar.gz" \
     && tar xzf /tmp/wasmedge.tar.gz -C "$tmpdir" \
     && rm /tmp/wasmedge.tar.gz \
     && mkdir -p /opt/wasmedge/bin /opt/wasmedge/lib \
-    && find "$tmpdir" -name "wasmedge" ! -path "*/lib/*" -exec cp -a {} /opt/wasmedge/bin/ \; \
-    && find "$tmpdir" -name "libwasmedge*" -exec cp -a {} /opt/wasmedge/lib/ \; \
+    && find "$tmpdir" -type f -name "wasmedge" -exec cp {} /opt/wasmedge/bin/ \; \
+    && find "$tmpdir" \( -type f -o -type l \) -name "libwasmedge*.so*" -exec cp -a {} /opt/wasmedge/lib/ \; \
     && rm -rf "$tmpdir" \
     && test -f /opt/wasmedge/bin/wasmedge \
     || { echo "FATAL: wasmedge binary not found"; exit 1; }
 
-# ── wasi_nn-ggml CUDA plugin (find without -type f + cp -a preserves symlinks) ──
+# ── wasi_nn-ggml CUDA plugin ──
 RUN tmpdir=$(mktemp -d) \
     && curl -sL -o /tmp/nn_plugin.tar.gz \
     "https://github.com/WasmEdge/WasmEdge/releases/download/${WASMEDGE_VERSION}/WasmEdge-plugin-wasi_nn-ggml-cuda-${WASMEDGE_VERSION}-ubuntu20.04_x86_64.tar.gz" \
     && tar xzf /tmp/nn_plugin.tar.gz -C "$tmpdir" \
     && rm /tmp/nn_plugin.tar.gz \
     && mkdir -p /opt/wasmedge/plugin \
-    && find "$tmpdir" -name "*.so*" -exec cp -a {} /opt/wasmedge/plugin/ \; \
+    && find "$tmpdir" \( -type f -o -type l \) -name "*.so*" -exec cp -a {} /opt/wasmedge/plugin/ \; \
     && rm -rf "$tmpdir" \
     && test -f /opt/wasmedge/plugin/libwasmedgePluginWasiNN.so \
     || { echo "FATAL: CUDA plugin .so not found"; exit 1; }
