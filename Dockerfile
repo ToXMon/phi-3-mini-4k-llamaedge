@@ -1,14 +1,15 @@
 # LlamaEdge Phi-3-mini-4k-instruct + all-MiniLM-L6-v2
-# CPU-only image — WasmEdge 0.15.0 with wasi_nn-ggml plugin
+# CPU-only image — WasmEdge 0.14.1 with wasi_nn-ggml plugin
 #
-# Based on 73d125c (which built successfully) with ONE fix:
-# lib .so copy uses (-type f -o -type l) to include symlinks
-# and cp -a to preserve them. This fixes runtime error:
-#   libwasmedge.so.0: cannot open shared object file
+# Based on 58c1f97 (symlink fix) with ONE fix:
+# Downgrade WasmEdge 0.15.0 → 0.14.1 to fix ABI mismatch.
+# LlamaEdge 0.29.0 WASM binary was compiled against 0.14.x SDK;
+# 0.15.0 has breaking API changes causing "free(): invalid pointer".
+# Plugin .so name: libwasmedgePluginWasiNnGgml.so (0.14.x naming)
 
 FROM ubuntu:22.04 AS builder
 
-ARG WASMEDGE_VERSION=0.15.0
+ARG WASMEDGE_VERSION=0.14.1
 ARG LLAMAEDGE_VERSION=0.29.0
 
 RUN apt-get update && apt-get install -y \
@@ -37,7 +38,7 @@ RUN tmpdir=$(mktemp -d) \
     && mkdir -p /opt/wasmedge/plugin \
     && find "$tmpdir" \( -type f -o -type l \) -name "*.so*" -exec cp -a {} /opt/wasmedge/plugin/ \; \
     && rm -rf "$tmpdir" \
-    && test -f /opt/wasmedge/plugin/libwasmedgePluginWasiNN.so \
+    && test -f /opt/wasmedge/plugin/libwasmedgePluginWasiNnGgml.so \
     || { echo "FATAL: plugin .so not found"; exit 1; }
 
 # ── Phi-3-mini-4k-instruct Q5_K_M (2.62 GiB) ──
