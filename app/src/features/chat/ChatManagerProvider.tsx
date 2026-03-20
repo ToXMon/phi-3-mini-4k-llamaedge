@@ -50,6 +50,11 @@ function findLastMessageIndexById(messages: ChatMessage[], messageId: string) {
   return -1
 }
 
+function isModelCacheError(caught: unknown) {
+  if (!(caught instanceof Error)) return false
+  return /(indexeddb|idb|cache\s*(corrupt|error|failed)|corrupt(ed)?\s*cache|database\s*(corrupt|error))/i.test(caught.message)
+}
+
 export function ChatManagerProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState<ChatMessage[]>(() => loadChatMessages())
   const [status, setStatus] = useState<ChatEngineStatus>('idle')
@@ -96,7 +101,7 @@ export function ChatManagerProvider({ children }: { children: ReactNode }) {
       setStatus('error')
       setError(message)
 
-      if (message.toLowerCase().includes('cache') || message.toLowerCase().includes('indexeddb')) {
+      if (isModelCacheError(caught)) {
         await recoverModelCache().catch(() => undefined)
         setProgressText('Model cache recovery completed. Retry initialization to redownload artifacts.')
       }

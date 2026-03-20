@@ -21,7 +21,7 @@ export function useStorageQuota() {
     let active = true
 
     const load = async () => {
-      if (!('storage' in navigator) || typeof navigator.storage?.estimate !== 'function') {
+      if (typeof navigator.storage?.estimate !== 'function') {
         if (active) setState(EMPTY_QUOTA)
         return
       }

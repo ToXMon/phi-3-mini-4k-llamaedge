@@ -8,7 +8,7 @@ export function getBrowserSupport(): BrowserSupport {
 
   if (!('Worker' in window)) missing.push('Web Workers')
   if (!('serviceWorker' in navigator)) missing.push('Service Workers')
-  if (!('storage' in navigator && typeof navigator.storage?.estimate === 'function')) {
+  if (typeof navigator.storage?.estimate !== 'function') {
     missing.push('Storage estimation API')
   }
   if (!('indexedDB' in window)) missing.push('IndexedDB')

@@ -4,7 +4,8 @@ import { useStorageQuota } from '../hooks/useStorageQuota'
 import styles from './SettingsPage.module.css'
 
 function formatBytes(value: number) {
-  if (!Number.isFinite(value) || value <= 0) return '0 B'
+  if (!Number.isFinite(value) || value < 0) return '0 B'
+  if (value === 0) return '0 B'
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
   let next = value
   let unitIndex = 0
