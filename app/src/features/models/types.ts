@@ -5,6 +5,7 @@ export interface ModelDefinition {
   name: string
   size: string
   isDefault?: boolean
+  webllmModelId?: string
 }
 
 export interface ModelMetadata {
