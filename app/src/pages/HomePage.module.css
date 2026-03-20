@@ -64,6 +64,11 @@
   font-size: var(--text-sm);
 }
 
+.offlineHint {
+  color: var(--color-info);
+  font-size: var(--text-sm);
+}
+
 .error {
   color: var(--color-error);
   font-size: var(--text-sm);

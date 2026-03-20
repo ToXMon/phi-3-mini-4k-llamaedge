@@ -1,5 +1,7 @@
 import {
   CreateWebWorkerMLCEngine,
+  deleteModelAllInfoInCache,
+  hasModelInCache,
   prebuiltAppConfig,
   type AppConfig,
   type InitProgressReport,
@@ -87,4 +89,13 @@ export async function generateStreamingReply(
 
 export function stopStreaming(engine: WebWorkerMLCEngine) {
   engine.interruptGenerate()
+}
+
+export async function hasOfflineModelCache() {
+  return hasModelInCache(WEBLLM_MODEL_ID, APP_CONFIG)
+}
+
+export async function recoverModelCache() {
+  await deleteModelAllInfoInCache(WEBLLM_MODEL_ID, APP_CONFIG)
+  enginePromise = null
 }

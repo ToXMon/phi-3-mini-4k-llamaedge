@@ -3,6 +3,7 @@ import { getDefaultModel, MODELS } from './modelRegistry'
 import { getDefaultModelMetadata, loadModelMetadata, saveModelMetadata } from './modelStorage'
 import type { ModelMetadata } from './types'
 import { ModelManagerContext } from './modelManagerContext'
+import { hasOfflineModelCache, recoverModelCache } from '../chat/webllmEngine'
 
 const PROGRESS_STEP = 8
 const PROGRESS_INTERVAL_MS = 250
@@ -15,6 +16,34 @@ export function ModelManagerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     saveModelMetadata(metadata)
   }, [metadata])
+
+  useEffect(() => {
+    let active = true
+
+    const syncWithCache = async () => {
+      const hasCache = await hasOfflineModelCache().catch(() => false)
+      if (!active) return
+      setMetadata((prev) => {
+        if (prev.cached === hasCache) return prev
+        const hasError = prev.downloadStatus === 'error'
+        return {
+          ...prev,
+          cached: hasCache,
+          downloadStatus: hasCache ? 'downloaded' : hasError ? 'error' : 'idle',
+          progress: hasCache ? 100 : 0,
+          updatedAt: new Date().toISOString(),
+        }
+      })
+    }
+
+    void syncWithCache()
+    const handleOnline = () => void syncWithCache()
+    window.addEventListener('online', handleOnline)
+    return () => {
+      active = false
+      window.removeEventListener('online', handleOnline)
+    }
+  }, [])
 
   useEffect(() => {
     unmountedRef.current = false
@@ -104,12 +133,25 @@ export function ModelManagerProvider({ children }: { children: ReactNode }) {
 
   const deleteCachedModel = useCallback(() => {
     clearTimer()
-    const defaultMetadata = getDefaultModelMetadata()
-    setMetadata({
-      ...defaultMetadata,
-      modelId: getDefaultModel().id,
-      updatedAt: new Date().toISOString(),
-    })
+    void (async () => {
+      try {
+        await recoverModelCache()
+        const defaultMetadata = getDefaultModelMetadata()
+        setMetadata({
+          ...defaultMetadata,
+          modelId: getDefaultModel().id,
+          updatedAt: new Date().toISOString(),
+        })
+      } catch (error) {
+        console.error(error)
+        setMetadata((prev) => ({
+          ...prev,
+          downloadStatus: 'error',
+          error: 'Failed to clear cached model artifacts. Please retry.',
+          updatedAt: new Date().toISOString(),
+        }))
+      }
+    })()
   }, [clearTimer])
 
   const value = useMemo(() => {

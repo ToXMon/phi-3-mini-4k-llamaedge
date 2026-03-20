@@ -1,5 +1,6 @@
 import styles from './Header.module.css'
 import { useChatManager } from '../../features/chat/chatManagerContext'
+import { usePWA } from '../../hooks/usePWA'
 
 interface HeaderProps {
   onMenuClick: () => void
@@ -8,6 +9,7 @@ interface HeaderProps {
 
 export default function Header({ onMenuClick, isMobile }: HeaderProps) {
   const { status, progressText } = useChatManager()
+  const { isOnline } = usePWA()
 
   const statusLabel =
     status === 'initializing'
@@ -61,6 +63,7 @@ export default function Header({ onMenuClick, isMobile }: HeaderProps) {
           <span className={styles.statusDot} />
           <span>{statusLabel}</span>
         </div>
+        {!isOnline && <span className={styles.networkBadge}>Offline</span>}
         {!isMobile && progressText && (
           <span className={styles.progressText}>{progressText}</span>
         )}

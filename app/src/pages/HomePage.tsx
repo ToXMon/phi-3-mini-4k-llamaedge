@@ -2,6 +2,7 @@ import { FormEvent, useMemo, useState } from 'react'
 import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
 import { useChatManager } from '../features/chat/chatManagerContext'
+import { usePWA } from '../hooks/usePWA'
 import styles from './HomePage.module.css'
 
 function statusCopy(status: ReturnType<typeof useChatManager>['status']) {
@@ -49,6 +50,7 @@ export default function HomePage() {
     canStop,
     isBusy,
   } = useChatManager()
+  const { isOnline } = usePWA()
   const [input, setInput] = useState('')
 
   const messageList = useMemo(
@@ -79,6 +81,11 @@ export default function HomePage() {
           </p>
           {progressText && <p className={styles.progress}>{progressText}</p>}
           {error && <p className={styles.error}>{error}</p>}
+          {!isOnline && (
+            <p className={styles.offlineHint}>
+              Offline mode active. If model files were cached earlier, inference continues without network.
+            </p>
+          )}
           <p className={styles.requirements}>
             Requires a modern browser with WebGPU support and enough device memory for Phi-3 Mini 4K.
           </p>
