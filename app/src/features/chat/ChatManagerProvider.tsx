@@ -90,7 +90,7 @@ export function ChatManagerProvider({ children }: { children: ReactNode }) {
       if (!navigator.onLine) {
         const hasCachedModel = await hasOfflineModelCache()
         if (!hasCachedModel) {
-          throw new Error('Cannot initialize model offline. Please connect to the internet to download the model for the first time.')
+          throw new Error('Model not cached. Connect to the internet to download it first.')
         }
       }
 
