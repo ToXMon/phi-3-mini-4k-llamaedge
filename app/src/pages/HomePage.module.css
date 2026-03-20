@@ -13,6 +13,8 @@
 .statusCard {
   display: grid;
   gap: var(--space-2);
+  border-color: var(--color-border-accent);
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.08), transparent 42%), var(--color-bg-elevated);
 }
 
 .statusTop {
@@ -64,6 +66,10 @@
   font-size: var(--text-sm);
 }
 
+.progress {
+  color: var(--color-info);
+}
+
 .offlineHint {
   color: var(--color-info);
   font-size: var(--text-sm);
@@ -94,6 +100,33 @@
   padding: var(--space-4);
   display: grid;
   gap: var(--space-2);
+}
+
+.loadingState,
+.errorState {
+  padding: var(--space-4);
+  display: grid;
+  gap: var(--space-2);
+}
+
+.loadingState {
+  border-color: rgba(56, 189, 248, 0.32);
+  background: rgba(56, 189, 248, 0.08);
+}
+
+.loadingState p {
+  color: var(--color-info);
+  font-size: var(--text-sm);
+}
+
+.errorState {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.errorState p {
+  color: #fecaca;
+  font-size: var(--text-sm);
 }
 
 .emptyState h2 {
@@ -159,6 +192,11 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+}
+
+.composerHint {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
 }
 
 @media (max-width: 767px) {
