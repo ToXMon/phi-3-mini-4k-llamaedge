@@ -52,7 +52,7 @@ export default function Header({ onMenuClick, isMobile }: HeaderProps) {
       </div>
 
       <div className={styles.right}>
-        <div className={[styles.statusPill, statusClass].join(' ')}>
+        <div className={`${styles.statusPill} ${statusClass}`}>
           <span className={styles.statusDot} />
           <span>{statusLabel}</span>
         </div>

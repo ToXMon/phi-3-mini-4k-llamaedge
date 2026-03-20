@@ -12,6 +12,8 @@ export interface ModelManagerValue {
 
 export const ModelManagerContext = createContext<ModelManagerValue | undefined>(undefined)
 
+export { ModelManagerProvider } from './ModelManagerProvider'
+
 export function useModelManager() {
   const context = useContext(ModelManagerContext)
   if (!context) {

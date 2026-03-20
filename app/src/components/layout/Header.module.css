@@ -67,11 +67,6 @@
   box-shadow: 0 0 5px var(--color-success);
 }
 
-.statusReady .statusDot {
-  background: var(--color-success);
-  box-shadow: 0 0 5px var(--color-success);
-}
-
 .statusError .statusDot {
   background: var(--color-error);
   box-shadow: 0 0 5px var(--color-error);

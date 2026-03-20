@@ -49,9 +49,13 @@ export function loadModelMetadata(): ModelMetadata {
     if (!raw) return DEFAULT_METADATA
     const sanitized = sanitizeMetadata(JSON.parse(raw))
     if (sanitized.downloadStatus === 'downloading' || sanitized.downloadStatus === 'error') {
+      const hasCompletedCache = sanitized.cached && sanitized.progress === 100
       return {
         ...DEFAULT_METADATA,
         modelId: sanitized.modelId,
+        cached: hasCompletedCache,
+        downloadStatus: hasCompletedCache ? 'downloaded' : 'idle',
+        progress: hasCompletedCache ? 100 : 0,
       }
     }
     return sanitized

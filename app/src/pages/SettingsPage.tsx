@@ -4,14 +4,18 @@ import { getDefaultModel } from '../features/models/modelRegistry'
 import { useModelManager } from '../features/models/modelManagerContext'
 import styles from './SettingsPage.module.css'
 
+function capitalizeFirst(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1)
+}
+
 export default function SettingsPage() {
-  const { metadata, downloadModel, deleteCachedModel, clearDownloadError } = useModelManager()
+  const { metadata, downloadModel, deleteCachedModel } = useModelManager()
   const model = getDefaultModel()
 
   const statusValue =
     metadata.downloadStatus === 'downloading'
-      ? `downloading (${metadata.progress}%)`
-      : metadata.downloadStatus
+      ? `Downloading (${metadata.progress}%)`
+      : capitalizeFirst(metadata.downloadStatus)
 
   return (
     <div className={styles.page}>
@@ -50,10 +54,7 @@ export default function SettingsPage() {
               <div className={styles.actions}>
                 <Button
                   variant="secondary"
-                  onClick={() => {
-                    if (metadata.downloadStatus === 'error') clearDownloadError()
-                    void downloadModel()
-                  }}
+                  onClick={() => void downloadModel()}
                   loading={metadata.downloadStatus === 'downloading'}
                   disabled={metadata.downloadStatus === 'downloaded'}
                 >

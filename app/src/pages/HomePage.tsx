@@ -23,7 +23,7 @@ const capabilities = [
 ]
 
 export default function HomePage() {
-  const { metadata, downloadModel, clearDownloadError } = useModelManager()
+  const { metadata, downloadModel } = useModelManager()
   const model = getDefaultModel()
 
   const ctaLabel =
@@ -31,9 +31,9 @@ export default function HomePage() {
       ? `Downloading ${metadata.progress}%`
       : metadata.downloadStatus === 'downloaded'
         ? 'Model Cached'
+        : metadata.downloadStatus === 'error'
+          ? 'Retry Download'
         : 'Download Model'
-
-  const showRetry = metadata.downloadStatus === 'error'
 
   return (
     <div className={styles.page}>
@@ -52,10 +52,7 @@ export default function HomePage() {
           <Button
             size="lg"
             className={styles.ctaBtn}
-            onClick={() => {
-              if (showRetry) clearDownloadError()
-              void downloadModel()
-            }}
+            onClick={() => void downloadModel()}
             loading={metadata.downloadStatus === 'downloading'}
             disabled={metadata.downloadStatus === 'downloaded'}
           >
