@@ -37,6 +37,21 @@ Docker images that run [LlamaEdge](https://github.com/second-state/LlamaEdge) (W
 
 ## Quick Start
 
+### Deploy PWA on Akash Network
+
+> Akash hosts the static app shell only. All model inference still runs locally in the browser via WebLLM.
+
+1. Build and push the PWA image to GHCR:
+
+```bash
+docker build -f Dockerfile.pwa -t ghcr.io/toxmon/phi-3-mini-4k-llamaedge-pwa:latest .
+echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "<your-github-username>" --password-stdin
+docker push ghcr.io/toxmon/phi-3-mini-4k-llamaedge-pwa:latest
+```
+
+2. Open [Akash Console](https://console.akash.network) and deploy using `deploy-pwa.yaml`.
+3. Update the image tag in `deploy-pwa.yaml` if you pushed a non-`latest` tag.
+
 ### Deploy on Akash Network (GPU)
 
 1. Go to [Akash Console](https://console.akash.network)
@@ -369,12 +384,11 @@ docker build -t phi-3-mini-4k-llamaedge:gpu \
 
 ### CI/CD
 
-Images are built automatically via [GitHub Actions](.github/workflows/docker-build.yml) on push to `main` and pushed to GHCR:
+The PWA image is built automatically via [GitHub Actions](.github/workflows/pwa-ghcr.yml) on pushes to `copilot/create-akash-deployment-assets` and manual `workflow_dispatch`:
 
-```
-ghcr.io/toxmon/phi-3-mini-4k-llamaedge:652d3f4
-ghcr.io/toxmon/phi-3-mini-4k-llamaedge:cuda12-652d3f4
-```
+- build the production app from `app/`
+- build `Dockerfile.pwa`
+- push to GHCR under the repository owner namespace (default: `ghcr.io/toxmon/phi-3-mini-4k-llamaedge-pwa`)
 
 ---
 
