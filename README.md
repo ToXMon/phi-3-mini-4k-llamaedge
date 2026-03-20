@@ -79,22 +79,39 @@ npm run preview
 
 ---
 
+## Deployment
+
+### 1) GitHub Pages (recommended for static HTTPS PWA hosting)
+
+GitHub Pages now deploys the built frontend from `app/dist` using `.github/workflows/pages.yml`.
+
+Why this path is recommended for the PWA:
+
+- **Automatic HTTPS** on `https://<user>.github.io/<repo>/`, which satisfies secure-context requirements for **WebGPU** in modern browsers.
+- **Static hosting fit** for this app because inference is already local in-browser via WebLLM.
+- **Asset paths and routing are base-path aware**: the Vite build uses `VITE_BASE_PATH` in CI (`/${{ github.event.repository.name }}/`) so bundles, manifest scope, and service-worker navigation fallback resolve correctly under the GitHub Pages subpath.
+
+How to use it:
+
+1. In repository settings, set **Pages** source to **GitHub Actions**.
+2. Push to `main` (or run the workflow manually).
+3. Open the published URL from the workflow output.
+
+For local/default development, Vite still builds with root base path (`/`) unless `VITE_BASE_PATH` is set.
+
+### 2) Akash (optional future remote inference / advanced hosting)
+
+Akash deployment files remain in this repository for optional future scenarios:
+
+- `deploy-pwa.yaml` for containerized static hosting
+- `deploy-cpu.yaml` for CPU-hosted LlamaEdge inference API
+- `deploy-gpu.yaml` for GPU-hosted LlamaEdge inference API
+
+Use Akash when you want remote inference, API serving, or custom infrastructure controls beyond static Pages hosting.
+
+---
+
 ## Quick Start
-
-### Deploy PWA on Akash Network
-
-> Akash hosts the static app shell only. All model inference still runs locally in the browser via WebLLM.
-
-1. Build and push the PWA image to GHCR:
-
-```bash
-docker build -f Dockerfile.pwa -t ghcr.io/toxmon/phi-3-mini-4k-llamaedge-pwa:latest .
-echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "<your-github-username>" --password-stdin
-docker push ghcr.io/toxmon/phi-3-mini-4k-llamaedge-pwa:latest
-```
-
-2. Open [Akash Console](https://console.akash.network) and deploy using `deploy-pwa.yaml`.
-3. Update the image tag in `deploy-pwa.yaml` if you pushed a non-`latest` tag.
 
 ### Deploy on Akash Network (GPU)
 
