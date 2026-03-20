@@ -1,95 +1,136 @@
-import Card from '../components/ui/Card'
+import { FormEvent, useMemo, useState } from 'react'
 import Button from '../components/ui/Button'
-import { getDefaultModel } from '../features/models/modelRegistry'
-import { useModelManager } from '../features/models/modelManagerContext'
+import Card from '../components/ui/Card'
+import { useChatManager } from '../features/chat/chatManagerContext'
 import styles from './HomePage.module.css'
 
-const capabilities = [
-  {
-    icon: '⚡',
-    title: 'Runs Locally',
-    description: 'All inference happens in your browser using WebGPU. Your data never leaves your device.',
-  },
-  {
-    icon: '📴',
-    title: 'Works Offline',
-    description: 'Once the model is downloaded, the app works completely offline—no internet required.',
-  },
-  {
-    icon: '🔒',
-    title: 'Private by Default',
-    description: 'No accounts, no telemetry, no cloud calls. Fully private conversations every time.',
-  },
-]
+function statusCopy(status: ReturnType<typeof useChatManager>['status']) {
+  switch (status) {
+    case 'idle':
+      return 'Idle'
+    case 'initializing':
+      return 'Initializing local model engine…'
+    case 'downloading':
+      return 'Downloading model to browser storage…'
+    case 'ready':
+      return 'Ready'
+    case 'generating':
+      return 'Generating response…'
+    case 'error':
+      return 'Error'
+    default:
+      return status
+  }
+}
+
+function getStatusBadgeClass(
+  status: ReturnType<typeof useChatManager>['status'],
+  classes: Record<string, string>,
+) {
+  if (status === 'initializing') return classes.badgeInitializing
+  if (status === 'downloading') return classes.badgeDownloading
+  if (status === 'ready') return classes.badgeReady
+  if (status === 'generating') return classes.badgeGenerating
+  if (status === 'error') return classes.badgeError
+  return ''
+}
 
 export default function HomePage() {
-  const { metadata, downloadModel } = useModelManager()
-  const model = getDefaultModel()
+  const {
+    messages,
+    status,
+    progressText,
+    error,
+    sendMessage,
+    stopGeneration,
+    regenerateLastAnswer,
+    clearConversation,
+    canRegenerate,
+    canStop,
+    isBusy,
+  } = useChatManager()
+  const [input, setInput] = useState('')
 
-  const ctaLabel =
-    metadata.downloadStatus === 'downloading'
-      ? `Downloading ${metadata.progress}%`
-      : metadata.downloadStatus === 'downloaded'
-        ? 'Model Cached'
-        : metadata.downloadStatus === 'error'
-          ? 'Retry Download'
-        : 'Download Model'
+  const messageList = useMemo(
+    () => messages.filter((message) => message.content.trim().length > 0),
+    [messages],
+  )
+
+  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const next = input.trim()
+    if (!next) return
+    setInput('')
+    await sendMessage(next)
+  }
 
   return (
     <div className={styles.page}>
-      <div className={styles.emptyState}>
-        <div className={styles.hero}>
-          <div className={styles.heroIcon}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2L2 7l10 5 10-5-10-5z" fill="var(--color-accent)"/>
-              <path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke="var(--color-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
+      <div className={styles.layout}>
+        <Card className={styles.statusCard}>
+          <div className={styles.statusTop}>
+            <h1 className={styles.title}>Phi-3 Mini Local Chat</h1>
+            <span className={`${styles.badge} ${getStatusBadgeClass(status, styles)}`}>
+              {statusCopy(status)}
+            </span>
           </div>
-          <h1 className={styles.heroTitle}>{model.name}</h1>
-          <p className={styles.heroSubtitle}>
-            A powerful 4K-context language model running entirely in your browser.
+          <p className={styles.subtitle}>
+            Runs fully in your browser with WebGPU + WebLLM. No backend and no cloud inference.
           </p>
-          <Button
-            size="lg"
-            className={styles.ctaBtn}
-            onClick={() => void downloadModel()}
-            loading={metadata.downloadStatus === 'downloading'}
-            disabled={metadata.downloadStatus === 'downloaded'}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-            </svg>
-            {ctaLabel}
-          </Button>
-          {metadata.downloadStatus === 'error' && metadata.error && (
-            <p className={styles.error}>{metadata.error}</p>
-          )}
-        </div>
+          {progressText && <p className={styles.progress}>{progressText}</p>}
+          {error && <p className={styles.error}>{error}</p>}
+          <p className={styles.requirements}>
+            Requires a modern browser with WebGPU support and enough device memory for Phi-3 Mini 4K.
+          </p>
+        </Card>
 
-        <div className={styles.capabilities}>
-          {capabilities.map(cap => (
-            <Card key={cap.title} glass className={styles.capCard}>
-              <div className={styles.capIcon}>{cap.icon}</div>
-              <h3 className={styles.capTitle}>{cap.title}</h3>
-              <p className={styles.capDesc}>{cap.description}</p>
-            </Card>
-          ))}
-        </div>
-
-        <div className={styles.modelInfo}>
-          <div className={styles.modelInfoInner}>
-            <span className={styles.modelInfoLabel}>Model</span>
-            <code className={styles.modelInfoValue}>{model.id}</code>
-            <span className={styles.modelInfoSep}>·</span>
-            <span className={styles.modelInfoLabel}>Size</span>
-            <code className={styles.modelInfoValue}>{model.size}</code>
-            <span className={styles.modelInfoSep}>·</span>
-            <span className={styles.modelInfoLabel}>Status</span>
-            <code className={styles.modelInfoValue}>{metadata.downloadStatus}</code>
-            <span className={styles.modelInfoSep}>·</span>
-            <span className={styles.modelInfoLabel}>Cached</span>
-            <code className={styles.modelInfoValue}>{metadata.cached ? 'yes' : 'no'}</code>
+        <div className={styles.chatPanel}>
+          <div className={styles.messages} role="log" aria-live="polite">
+            {messageList.length === 0 ? (
+              <Card className={styles.emptyState}>
+                <h2>Start a local conversation</h2>
+                <p>
+                  Ask anything to initialize the model. The first run can take a while because model files are downloaded and cached locally.
+                </p>
+              </Card>
+            ) : (
+              messageList.map((message) => (
+                <div
+                  key={message.id}
+                  className={`${styles.messageRow} ${message.role === 'user' ? styles.userRow : styles.assistantRow}`}
+                >
+                  <div className={`${styles.messageBubble} ${message.role === 'user' ? styles.userBubble : styles.assistantBubble}`}>
+                    <p>{message.content}</p>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
+
+          <form className={styles.composer} onSubmit={(event) => void onSubmit(event)}>
+            <textarea
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              className={styles.input}
+              rows={3}
+              placeholder="Type a message..."
+              disabled={isBusy}
+            />
+            <div className={styles.actions}>
+              <Button type="submit" disabled={isBusy || input.trim().length === 0}>
+                Send
+              </Button>
+              <Button type="button" variant="secondary" onClick={stopGeneration} disabled={!canStop}>
+                Stop
+              </Button>
+              <Button type="button" variant="secondary" onClick={regenerateLastAnswer} disabled={!canRegenerate}>
+                Regenerate
+              </Button>
+              <Button type="button" variant="danger" onClick={clearConversation} disabled={messageList.length === 0 && status !== 'error'}>
+                Clear
+              </Button>
+            </div>
+          </form>
         </div>
       </div>
     </div>

@@ -1,5 +1,6 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import styles from './Sidebar.module.css'
+import { useChatManager } from '../../features/chat/chatManagerContext'
 
 interface SidebarProps {
   mobile?: boolean
@@ -29,6 +30,9 @@ const navItems = [
 ]
 
 export default function Sidebar({ mobile = false, onClose }: SidebarProps) {
+  const navigate = useNavigate()
+  const { clearConversation } = useChatManager()
+
   return (
     <aside className={`${styles.sidebar} ${mobile ? styles.mobile : ''}`}>
       <div className={styles.header}>
@@ -55,7 +59,14 @@ export default function Sidebar({ mobile = false, onClose }: SidebarProps) {
 
       <nav className={styles.nav}>
         <div className={styles.newChatBtn}>
-          <button className={styles.newChat}>
+          <button
+            className={styles.newChat}
+            onClick={() => {
+              clearConversation()
+              void navigate('/')
+              onClose?.()
+            }}
+          >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M12 5v14M5 12h14"/>
             </svg>
@@ -91,7 +102,7 @@ export default function Sidebar({ mobile = false, onClose }: SidebarProps) {
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M1 6s4-4 11-4 11 4 11 4M1 12s4-4 11-4 11 4 11 4M5 18s3.5-2 7-2 7 2 7 2"/>
           </svg>
-          Offline-first
+          Local-only inference
         </div>
       </div>
     </aside>

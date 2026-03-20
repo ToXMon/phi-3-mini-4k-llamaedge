@@ -1,5 +1,5 @@
 import styles from './Header.module.css'
-import { useModelManager } from '../../features/models/modelManagerContext'
+import { useChatManager } from '../../features/chat/chatManagerContext'
 
 interface HeaderProps {
   onMenuClick: () => void
@@ -7,22 +7,27 @@ interface HeaderProps {
 }
 
 export default function Header({ onMenuClick, isMobile }: HeaderProps) {
-  const { metadata } = useModelManager()
+  const { status, progressText } = useChatManager()
+
   const statusLabel =
-    metadata.downloadStatus === 'downloading'
-      ? `Downloading ${metadata.progress}%`
-      : metadata.downloadStatus === 'downloaded'
-        ? 'Ready'
-        : metadata.downloadStatus === 'error'
-          ? 'Download Error'
-          : 'Not Downloaded'
+    status === 'initializing'
+      ? 'Initializing'
+      : status === 'downloading'
+        ? 'Downloading'
+        : status === 'ready'
+          ? 'Ready'
+          : status === 'generating'
+            ? 'Generating'
+            : status === 'error'
+              ? 'Error'
+              : 'Idle'
 
   const statusClass =
-    metadata.downloadStatus === 'downloaded'
+    status === 'ready'
       ? styles.statusReady
-      : metadata.downloadStatus === 'error'
+      : status === 'error'
         ? styles.statusError
-        : metadata.downloadStatus === 'downloading'
+        : status === 'generating' || status === 'initializing' || status === 'downloading'
           ? styles.statusDownloading
           : styles.statusIdle
 
@@ -56,6 +61,9 @@ export default function Header({ onMenuClick, isMobile }: HeaderProps) {
           <span className={styles.statusDot} />
           <span>{statusLabel}</span>
         </div>
+        {!isMobile && progressText && (
+          <span className={styles.progressText}>{progressText}</span>
+        )}
       </div>
     </header>
   )
