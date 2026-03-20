@@ -1,45 +1,49 @@
-# Architecture Notes (Phase 1: Audit + Migration Planning)
+# Architecture
 
-## Current architecture (as-is)
+This project now ships as an **offline-first browser app** with optional static hosting on Akash.
+Inference runs in the user’s browser (WebLLM + WebGPU), not on a remote model server.
 
-This repository is currently a **server-side LlamaEdge deployment**:
+## High-level system
 
-- `Dockerfile` / `Dockerfile.cuda12` build container images that run:
-  - WasmEdge runtime
-  - `llama-api-server.wasm`
-  - GGUF model files
-  - prebuilt `chatbot-ui`
-- `deploy-cpu.yaml` and `deploy-gpu.yaml` are Akash SDL manifests for deploying that container.
-- `.github/workflows/docker-build.yml` builds and pushes CPU/GPU Docker images to GHCR.
+1. **Static delivery layer**
+   - The `app/` frontend is built with Vite and deployed as static files.
+   - `Dockerfile.pwa` + `nginx.pwa.conf` serve the built app shell.
+   - `deploy-pwa.yaml` deploys the static image on Akash.
 
-Inference is done on the server container, not in the browser.
+2. **Client runtime layer**
+   - React + TypeScript UI in `app/src/`.
+   - Routing and shell layout handle chat and settings views.
+   - Browser capability checks gate unsupported environments.
 
-## Target architecture (to-be)
+3. **Inference layer**
+   - WebLLM runs in a dedicated web worker (`app/src/features/chat/webllm.worker.ts`).
+   - `ChatManagerProvider` coordinates initialization, streaming generation, retries, and cancellation.
+   - The default model ID is managed through `app/src/features/models/modelRegistry.ts`.
 
-The repo will pivot to a **static, offline-first PWA** served on Akash:
+4. **Offline/storage layer**
+   - PWA service worker caches app shell assets for offline loading.
+   - WebLLM manages model artifacts in browser storage.
+   - Chat history is stored locally (browser-only) and never sent to a backend.
+   - Quota checks warn when device storage pressure can affect downloads/caching.
 
-- App shell: React + TypeScript + Vite
-- Inference: WebLLM in-browser (WebGPU first, WASM fallback where possible)
-- Caching: service worker + browser storage for app/runtime/model artifacts
-- UX: local chat history persistence, offline-ready state, model download management
-- No mandatory remote inference in the core flow
+## Request and data flow
 
-## Core architectural constraints
+1. User opens the app (online or offline).
+2. App checks required browser capabilities.
+3. On first prompt, chat manager initializes WebLLM in worker:
+   - if online: download/caches model artifacts as needed
+   - if offline: requires an already-cached model
+4. Tokens stream back from worker to UI.
+5. Conversation state is persisted locally in browser storage.
 
-1. **Model compatibility constraint**
-   - Existing artifacts are GGUF for LlamaEdge/ggml.
-   - WebLLM requires MLC-compatible model artifacts and runtime libs.
-   - Therefore, existing GGUF artifact references in Dockerfiles should not be assumed directly compatible.
+## Deployment model
 
-2. **Offline guarantee constraint**
-   - After install + model download, app must function with network disabled.
-   - This requires complete asset/runtime/model caching strategy and explicit recovery handling.
+- **Recommended release target:** PWA static image (`Dockerfile.pwa`) on Akash (`deploy-pwa.yaml`).
+- **Legacy server artifacts** (`Dockerfile`, `Dockerfile.cuda12`, `deploy-cpu.yaml`, `deploy-gpu.yaml`) remain in the repo for historical/server workflows, but the product UX is centered on browser-local inference.
 
-3. **Device capability constraint**
-   - Browser support for WebGPU varies by browser/device.
-   - Capability detection + unsupported-browser UX must be a first-class path.
+## Operational characteristics
 
-## CI observation relevant to migration
-
-Recent historical Docker workflow failures in `Build and Push LlamaEdge Phi-3 Images` were caused by plugin filename expectation mismatch in prior revisions (`libwasmedgePluginWasiNnGgml.so` not found in job logs). This supports migration away from server runtime/plugin coupling toward browser-local inference.
-
+- No required inference backend in the core path.
+- No model prompts/responses leave the device by default.
+- First-run experience depends on model download speed and available storage.
+- User experience includes explicit states for loading, empty chat, offline readiness, and local error recovery.

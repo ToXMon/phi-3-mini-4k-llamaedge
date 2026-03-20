@@ -35,6 +35,50 @@ Docker images that run [LlamaEdge](https://github.com/second-state/LlamaEdge) (W
 
 ---
 
+## Product Screenshots (placeholders)
+
+> Replace these placeholders with real images before the release tag.
+
+![Chat view](https://github.com/user-attachments/assets/896bc13a-7e39-418b-9f92-cc1de2151548)
+![Loading and offline states placeholder](docs/screenshots/placeholder-states.png)
+![Settings view placeholder](docs/screenshots/placeholder-settings.png)
+
+## Usage (PWA product path)
+
+### Run locally for development
+
+```bash
+cd app
+npm ci --legacy-peer-deps
+npm run dev
+```
+
+Open the printed local URL (typically `http://localhost:5173`).
+
+### Build and preview production app locally
+
+```bash
+cd app
+npm ci --legacy-peer-deps
+npm run build
+npm run preview
+```
+
+### Use the app
+
+1. Open the chat page.
+2. Send a first prompt to initialize WebLLM and download model artifacts.
+3. Wait for status to become ready, then continue chatting.
+4. Revisit while offline to confirm cached/offline behavior.
+
+### Key docs for release
+
+- [Architecture](docs/architecture.md)
+- [Migration from legacy LlamaEdge flow](docs/migration-from-llamaedge.md)
+- [Release checklist](docs/release-checklist.md)
+
+---
+
 ## Quick Start
 
 ### Deploy PWA on Akash Network
