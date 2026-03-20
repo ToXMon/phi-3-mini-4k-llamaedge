@@ -45,7 +45,7 @@ Docker images that run [LlamaEdge](https://github.com/second-state/LlamaEdge) (W
 
 ```bash
 docker build -f Dockerfile.pwa -t ghcr.io/toxmon/phi-3-mini-4k-llamaedge-pwa:latest .
-echo "${GITHUB_TOKEN}" | docker login ghcr.io -u toxmon --password-stdin
+echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "<your-github-username>" --password-stdin
 docker push ghcr.io/toxmon/phi-3-mini-4k-llamaedge-pwa:latest
 ```
 
