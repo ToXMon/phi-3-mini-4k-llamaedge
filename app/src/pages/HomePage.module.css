@@ -53,6 +53,11 @@
   margin-top: var(--space-2);
 }
 
+.error {
+  color: var(--color-error);
+  font-size: var(--text-xs);
+}
+
 .capabilities {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
