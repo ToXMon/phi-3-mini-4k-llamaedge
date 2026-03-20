@@ -52,7 +52,7 @@ function findLastMessageIndexById(messages: ChatMessage[], messageId: string) {
 
 function isModelCacheError(caught: unknown) {
   if (!(caught instanceof Error)) return false
-  return /(indexeddb|idb|cache\s*(corrupt|error|failed)|corrupt(ed)?\s*cache|database\s*(corrupt|error))/i.test(caught.message)
+  return /(indexeddb|idb|cache\s*(corrupt|failed)|corrupt(ed)?\s*cache|database\s*corrupt)/i.test(caught.message)
 }
 
 export function ChatManagerProvider({ children }: { children: ReactNode }) {

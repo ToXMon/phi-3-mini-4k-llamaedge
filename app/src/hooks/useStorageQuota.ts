@@ -30,6 +30,9 @@ export function useStorageQuota() {
       if (!active) return
       const usageBytes = estimate.usage ?? 0
       const quotaBytes = estimate.quota ?? 0
+      if (quotaBytes > 0 && usageBytes > quotaBytes) {
+        console.warn('Storage estimate usage is larger than quota.', { usageBytes, quotaBytes })
+      }
       const usagePercent = quotaBytes > 0 ? Math.min(100, Math.round((usageBytes / quotaBytes) * 100)) : 0
       setState({
         usageBytes,

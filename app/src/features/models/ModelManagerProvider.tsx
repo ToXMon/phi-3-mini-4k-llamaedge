@@ -133,15 +133,25 @@ export function ModelManagerProvider({ children }: { children: ReactNode }) {
 
   const deleteCachedModel = useCallback(() => {
     clearTimer()
-    const defaultMetadata = getDefaultModelMetadata()
-    void recoverModelCache().catch((error) => {
-      console.error(error)
-    })
-    setMetadata({
-      ...defaultMetadata,
-      modelId: getDefaultModel().id,
-      updatedAt: new Date().toISOString(),
-    })
+    void (async () => {
+      try {
+        await recoverModelCache()
+        const defaultMetadata = getDefaultModelMetadata()
+        setMetadata({
+          ...defaultMetadata,
+          modelId: getDefaultModel().id,
+          updatedAt: new Date().toISOString(),
+        })
+      } catch (error) {
+        console.error(error)
+        setMetadata((prev) => ({
+          ...prev,
+          downloadStatus: 'error',
+          error: 'Failed to clear cached model artifacts. Please retry.',
+          updatedAt: new Date().toISOString(),
+        }))
+      }
+    })()
   }, [clearTimer])
 
   const value = useMemo(() => {
