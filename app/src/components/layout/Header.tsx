@@ -1,4 +1,5 @@
 import styles from './Header.module.css'
+import { useModelManager } from '../../features/models/modelManagerContext'
 
 interface HeaderProps {
   onMenuClick: () => void
@@ -6,6 +7,25 @@ interface HeaderProps {
 }
 
 export default function Header({ onMenuClick, isMobile }: HeaderProps) {
+  const { metadata } = useModelManager()
+  const statusLabel =
+    metadata.downloadStatus === 'downloading'
+      ? `Downloading ${metadata.progress}%`
+      : metadata.downloadStatus === 'downloaded'
+        ? 'Ready'
+        : metadata.downloadStatus === 'error'
+          ? 'Download Error'
+          : 'Not Downloaded'
+
+  const statusClass =
+    metadata.downloadStatus === 'downloaded'
+      ? styles.statusReady
+      : metadata.downloadStatus === 'error'
+        ? styles.statusError
+        : metadata.downloadStatus === 'downloading'
+          ? styles.statusDownloading
+          : styles.statusIdle
+
   return (
     <header className={styles.header}>
       <div className={styles.left}>
@@ -32,9 +52,9 @@ export default function Header({ onMenuClick, isMobile }: HeaderProps) {
       </div>
 
       <div className={styles.right}>
-        <div className={styles.statusPill}>
+        <div className={`${styles.statusPill} ${statusClass}`}>
           <span className={styles.statusDot} />
-          <span>Ready</span>
+          <span>{statusLabel}</span>
         </div>
       </div>
     </header>
