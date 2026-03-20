@@ -19,7 +19,7 @@ export default function SettingsPage() {
   const model = getDefaultModel()
   const quota = useStorageQuota()
   const quotaMessage = quota.supported
-    ? `${formatBytes(quota.usageBytes)} / ${formatBytes(quota.quotaBytes)} used (${quota.usagePercent}%)`
+    ? `${formatBytes(quota.usageBytes)} / ${formatBytes(quota.quotaBytes)} used (${quota.usagePercent} %)`
     : 'Browser does not expose storage quota estimation.'
   const quotaWarning = quota.supported && quota.usagePercent >= 90
 

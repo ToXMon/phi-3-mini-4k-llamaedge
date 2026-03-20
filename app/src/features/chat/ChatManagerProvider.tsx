@@ -53,8 +53,7 @@ function findLastMessageIndexById(messages: ChatMessage[], messageId: string) {
 const CACHE_ERROR_TOKENS = [
   'indexeddb',
   'idb',
-  'cache\\s*(corrupt|failed)',
-  'corrupt(ed)?\\s*cache',
+  '(cache\\s*(corrupt|failed)|corrupt(ed)?\\s*cache)',
   'database\\s*corrupt',
 ]
 
@@ -91,7 +90,7 @@ export function ChatManagerProvider({ children }: { children: ReactNode }) {
       if (!navigator.onLine) {
         const hasCachedModel = await hasOfflineModelCache()
         if (!hasCachedModel) {
-          throw new Error('Offline and no cached model found. Connect once to download the model.')
+          throw new Error('Cannot initialize model offline. Please connect to the internet to download the model for the first time.')
         }
       }
 
