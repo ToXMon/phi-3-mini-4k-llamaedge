@@ -2,7 +2,7 @@ name: Build and Push PWA Image
 
 on:
   push:
-    branches: [copilot/create-akash-deployment-assets]
+    branches: [PWA-Offline, main]
     paths:
       - 'Dockerfile.pwa'
       - 'nginx.pwa.conf'
