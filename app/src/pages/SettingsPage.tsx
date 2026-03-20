@@ -27,7 +27,7 @@ export default function SettingsPage() {
     <div className={styles.page}>
       <div className={styles.content}>
         <h1 className={styles.title}>Settings</h1>
-        <p className={styles.subtitle}>Model and storage details for local-only chat.</p>
+        <p className={styles.subtitle}>Review local model, storage, and browser requirements before you chat.</p>
 
         <div className={styles.sections}>
           <Card className={styles.section}>
@@ -75,7 +75,7 @@ export default function SettingsPage() {
             {quotaWarning && (
               <div className={styles.row}>
                 <p className={styles.error}>
-                  Storage is almost full. Model download or caching can fail until you free up space.
+                  Storage is almost full. Downloads or cache updates may fail until you free up device space.
                 </p>
               </div>
             )}

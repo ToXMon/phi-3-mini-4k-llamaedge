@@ -22,6 +22,11 @@
   font-size: var(--text-sm);
 }
 
+.helper {
+  color: var(--color-info);
+  font-size: var(--text-sm);
+}
+
 .list {
   margin-left: var(--space-4);
   color: var(--color-text-secondary);

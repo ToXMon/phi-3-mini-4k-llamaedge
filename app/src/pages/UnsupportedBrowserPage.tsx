@@ -11,11 +11,14 @@ export default function UnsupportedBrowserPage({ missing }: UnsupportedBrowserPa
       <Card className={styles.card}>
         <h1 className={styles.title}>Browser not supported</h1>
         <p className={styles.subtitle}>
-          This app needs modern browser features for offline local inference. Please switch to a compatible browser/device.
+          This app needs modern browser capabilities to run local, offline inference. Switch to a compatible browser or newer device.
+        </p>
+        <p className={styles.helper}>
+          Recommended: latest Chrome, Edge, or another WebGPU-enabled browser on desktop or high-memory mobile hardware.
         </p>
         <ul className={styles.list}>
           {missing.map((feature) => (
-            <li key={feature}>{feature} is not available in this browser</li>
+            <li key={feature}><strong>{feature}</strong> is unavailable in this browser</li>
           ))}
         </ul>
       </Card>

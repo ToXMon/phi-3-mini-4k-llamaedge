@@ -5,20 +5,23 @@ import { useChatManager } from '../features/chat/chatManagerContext'
 import { usePWA } from '../hooks/usePWA'
 import styles from './HomePage.module.css'
 
+const FIRST_RUN_GUIDANCE =
+  'The first run can take a while because model files are downloaded and cached locally.'
+
 function statusCopy(status: ReturnType<typeof useChatManager>['status']) {
   switch (status) {
     case 'idle':
-      return 'Idle'
+      return 'Waiting for your first prompt'
     case 'initializing':
-      return 'Initializing local model engine…'
+      return 'Starting local inference engine…'
     case 'downloading':
-      return 'Downloading model to browser storage…'
+      return 'Downloading model for offline use…'
     case 'ready':
-      return 'Ready'
+      return 'Ready for local chat'
     case 'generating':
-      return 'Generating response…'
+      return 'Generating answer…'
     case 'error':
-      return 'Error'
+      return 'Needs attention'
     default:
       return status
   }
@@ -52,6 +55,8 @@ export default function HomePage() {
   } = useChatManager()
   const { isOnline } = usePWA()
   const [input, setInput] = useState('')
+  const isPreparing = status === 'initializing' || status === 'downloading'
+  const isErrorState = status === 'error'
 
   const messageList = useMemo(
     () => messages.filter((message) => message.content.trim().length > 0),
@@ -77,7 +82,7 @@ export default function HomePage() {
             </span>
           </div>
           <p className={styles.subtitle}>
-            Runs fully in your browser with WebGPU + WebLLM. No backend and no cloud inference.
+            Private, local-first chat powered by WebGPU + WebLLM. No backend. No cloud inference.
           </p>
           {progressText && <p className={styles.progress}>{progressText}</p>}
           {error && <p className={styles.error}>{error}</p>}
@@ -94,12 +99,25 @@ export default function HomePage() {
         <div className={styles.chatPanel}>
           <div className={styles.messages} role="log" aria-live="polite">
             {messageList.length === 0 ? (
-              <Card className={styles.emptyState}>
-                <h2>Start a local conversation</h2>
-                <p>
-                  Ask anything to initialize the model. The first run can take a while because model files are downloaded and cached locally.
-                </p>
-              </Card>
+              isPreparing ? (
+                <Card className={styles.loadingState}>
+                  <h2>Preparing your local model</h2>
+                  <p>{progressText ?? FIRST_RUN_GUIDANCE}</p>
+                </Card>
+              ) : isErrorState && error ? (
+                <Card className={styles.errorState}>
+                  <h2>We hit a local setup problem</h2>
+                  <p>{error}</p>
+                  <p>Try sending your prompt again. If it persists, clear chat and refresh the page.</p>
+                </Card>
+              ) : (
+                <Card className={styles.emptyState}>
+                  <h2>Start a local conversation</h2>
+                  <p>
+                    Ask anything to initialize the model. {FIRST_RUN_GUIDANCE}
+                  </p>
+                </Card>
+              )
             ) : (
               messageList.map((message) => (
                 <div
@@ -120,7 +138,7 @@ export default function HomePage() {
               onChange={(event) => setInput(event.target.value)}
               className={styles.input}
               rows={3}
-              placeholder="Type a message..."
+              placeholder="Ask anything..."
               disabled={isBusy}
             />
             <div className={styles.actions}>
@@ -134,9 +152,14 @@ export default function HomePage() {
                 Regenerate
               </Button>
               <Button type="button" variant="danger" onClick={clearConversation} disabled={messageList.length === 0 && status !== 'error'}>
-                Clear
+                Clear chat
               </Button>
             </div>
+            <p className={styles.composerHint}>
+              {isPreparing
+                ? 'Model setup in progress. You can type now and send once ready.'
+                : 'Everything stays on this device, including model cache and chat history.'}
+            </p>
           </form>
         </div>
       </div>
