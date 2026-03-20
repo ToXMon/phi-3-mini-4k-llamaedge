@@ -1,0 +1,34 @@
+version: "2.0"
+
+services:
+  pwa:
+    image: ghcr.io/toxmon/phi-3-mini-4k-llamaedge-pwa:latest
+    expose:
+      - port: 8080
+        as: 80
+        to:
+          - global: true
+
+profiles:
+  compute:
+    pwa:
+      resources:
+        cpu:
+          units: 1
+        memory:
+          size: 512Mi
+        storage:
+          size: 1Gi
+
+  placement:
+    akash:
+      pricing:
+        pwa:
+          denom: uakt
+          amount: 1000
+
+deployment:
+  pwa:
+    akash:
+      profile: pwa
+      count: 1
