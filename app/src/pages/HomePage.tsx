@@ -5,6 +5,9 @@ import { useChatManager } from '../features/chat/chatManagerContext'
 import { usePWA } from '../hooks/usePWA'
 import styles from './HomePage.module.css'
 
+const FIRST_RUN_GUIDANCE =
+  'The first run can take a while because model files are downloaded and cached locally.'
+
 function statusCopy(status: ReturnType<typeof useChatManager>['status']) {
   switch (status) {
     case 'idle':
@@ -99,7 +102,7 @@ export default function HomePage() {
               isPreparing ? (
                 <Card className={styles.loadingState}>
                   <h2>Preparing your local model</h2>
-                  <p>{progressText ?? 'This can take a few minutes on the first run while model files are cached.'}</p>
+                  <p>{progressText ?? FIRST_RUN_GUIDANCE}</p>
                 </Card>
               ) : isErrorState && error ? (
                 <Card className={styles.errorState}>
@@ -111,7 +114,7 @@ export default function HomePage() {
                 <Card className={styles.emptyState}>
                   <h2>Start a local conversation</h2>
                   <p>
-                    Ask anything to initialize the model. The first run can take a while because model files are downloaded and cached locally.
+                    Ask anything to initialize the model. {FIRST_RUN_GUIDANCE}
                   </p>
                 </Card>
               )
@@ -135,7 +138,7 @@ export default function HomePage() {
               onChange={(event) => setInput(event.target.value)}
               className={styles.input}
               rows={3}
-              placeholder="Ask anything…"
+              placeholder="Ask anything..."
               disabled={isBusy}
             />
             <div className={styles.actions}>

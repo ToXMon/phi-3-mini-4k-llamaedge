@@ -31,7 +31,7 @@ This guide summarizes how to move from the legacy server-centric setup to the cu
    - Monitor user-facing states (loading/offline/error) rather than server pod logs for inference behavior.
 
 4. **Set user expectations**
-   - First run requires model download.
+   - The first run requires model download.
    - Offline inference works after successful model caching.
    - Browser/device capability directly affects support and performance.
 
