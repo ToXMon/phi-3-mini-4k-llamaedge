@@ -3,13 +3,16 @@ import AppShell from './components/layout/AppShell'
 import HomePage from './pages/HomePage'
 import SettingsPage from './pages/SettingsPage'
 
-export const router = createBrowserRouter([
-  {
-    path: '/',
-    element: <AppShell />,
-    children: [
-      { index: true, element: <HomePage /> },
-      { path: 'settings', element: <SettingsPage /> },
-    ],
-  },
-])
+export const router = createBrowserRouter(
+  [
+    {
+      path: '/',
+      element: <AppShell />,
+      children: [
+        { index: true, element: <HomePage /> },
+        { path: 'settings', element: <SettingsPage /> },
+      ],
+    },
+  ],
+  { basename: import.meta.env.BASE_URL }
+)
