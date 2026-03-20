@@ -50,9 +50,18 @@ function findLastMessageIndexById(messages: ChatMessage[], messageId: string) {
   return -1
 }
 
+const CACHE_ERROR_TOKENS = [
+  'indexeddb',
+  'idb',
+  'cache\\s*(corrupt|failed)',
+  'corrupt(ed)?\\s*cache',
+  'database\\s*corrupt',
+]
+
 function isModelCacheError(caught: unknown) {
   if (!(caught instanceof Error)) return false
-  return /(indexeddb|idb|cache\s*(corrupt|failed)|corrupt(ed)?\s*cache|database\s*corrupt)/i.test(caught.message)
+  const pattern = new RegExp(`(${CACHE_ERROR_TOKENS.join('|')})`, 'i')
+  return pattern.test(caught.message)
 }
 
 export function ChatManagerProvider({ children }: { children: ReactNode }) {

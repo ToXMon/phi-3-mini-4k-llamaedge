@@ -6,13 +6,13 @@ import styles from './SettingsPage.module.css'
 function formatBytes(value: number) {
   if (!Number.isFinite(value) || value < 0) return '0 B'
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  let next = value
+  let scaledValue = value
   let unitIndex = 0
-  while (next >= 1024 && unitIndex < units.length - 1) {
-    next /= 1024
+  while (scaledValue >= 1024 && unitIndex < units.length - 1) {
+    scaledValue /= 1024
     unitIndex += 1
   }
-  return `${next.toFixed(next >= 10 ? 0 : 1)} ${units[unitIndex]}`
+  return `${scaledValue.toFixed(scaledValue >= 10 ? 0 : 1)} ${units[unitIndex]}`
 }
 
 export default function SettingsPage() {

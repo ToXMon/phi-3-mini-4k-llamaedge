@@ -28,11 +28,12 @@ export function useStorageQuota() {
 
       const estimate = await navigator.storage.estimate()
       if (!active) return
-      const usageBytes = estimate.usage ?? 0
+      const rawUsageBytes = estimate.usage ?? 0
       const quotaBytes = estimate.quota ?? 0
-      if (quotaBytes > 0 && usageBytes > quotaBytes) {
-        console.warn('Storage estimate usage is larger than quota.', { usageBytes, quotaBytes })
+      if (quotaBytes > 0 && rawUsageBytes > quotaBytes) {
+        console.warn('Storage estimate usage is larger than quota.', { usageBytes: rawUsageBytes, quotaBytes })
       }
+      const usageBytes = quotaBytes > 0 ? Math.min(rawUsageBytes, quotaBytes) : rawUsageBytes
       const usagePercent = quotaBytes > 0 ? Math.min(100, Math.round((usageBytes / quotaBytes) * 100)) : 0
       setState({
         usageBytes,
