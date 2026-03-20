@@ -5,6 +5,8 @@ import type { ChatEngineStatus, ChatMessage } from './types'
 import {
   generateStreamingReply,
   getWebLLMEngine,
+  hasOfflineModelCache,
+  recoverModelCache,
   stopStreaming,
   WEBLLM_MODEL_ID,
 } from './webllmEngine'
@@ -72,6 +74,13 @@ export function ChatManagerProvider({ children }: { children: ReactNode }) {
     setError(null)
 
     try {
+      if (!navigator.onLine) {
+        const hasCachedModel = await hasOfflineModelCache()
+        if (!hasCachedModel) {
+          throw new Error('Offline and no cached model found. Connect once to download the model.')
+        }
+      }
+
       const engine = await getWebLLMEngine((report) => {
         const lower = report.text.toLowerCase()
         setStatus(lower.includes('download') ? 'downloading' : 'initializing')
@@ -86,6 +95,12 @@ export function ChatManagerProvider({ children }: { children: ReactNode }) {
       const message = caught instanceof Error ? caught.message : 'Failed to initialize WebLLM.'
       setStatus('error')
       setError(message)
+
+      if (message.toLowerCase().includes('cache') || message.toLowerCase().includes('indexeddb')) {
+        await recoverModelCache().catch(() => undefined)
+        setProgressText('Model cache recovery completed. Retry initialization to redownload artifacts.')
+      }
+
       throw caught
     }
   }, [])

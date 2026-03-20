@@ -4,10 +4,12 @@ import Sidebar from './Sidebar'
 import Header from './Header'
 import MobileNav from './MobileNav'
 import styles from './AppShell.module.css'
+import { usePWA } from '../../hooks/usePWA'
 
 export default function AppShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
+  const { isOnline } = usePWA()
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)')
@@ -32,6 +34,11 @@ export default function AppShell() {
 
       <div className={styles.content}>
         <Header onMenuClick={() => setSidebarOpen(true)} isMobile={isMobile} />
+        {!isOnline && (
+          <div className={styles.offlineBanner} role="status">
+            You are offline. Cached app shell is active.
+          </div>
+        )}
         <main className={styles.main}>
           <Outlet />
         </main>

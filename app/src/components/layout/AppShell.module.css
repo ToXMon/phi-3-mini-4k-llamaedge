@@ -12,6 +12,14 @@
   min-height: 100dvh;
 }
 
+.offlineBanner {
+  border-bottom: 1px solid rgba(56, 189, 248, 0.35);
+  background: rgba(56, 189, 248, 0.12);
+  color: var(--color-info);
+  font-size: var(--text-xs);
+  padding: var(--space-2) var(--space-4);
+}
+
 .main {
   flex: 1;
   overflow-y: auto;

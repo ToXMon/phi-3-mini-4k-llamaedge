@@ -73,5 +73,5 @@ export function clearModelMetadata() {
 }
 
 export function getDefaultModelMetadata() {
-  return DEFAULT_METADATA
+  return { ...DEFAULT_METADATA }
 }

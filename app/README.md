@@ -1,73 +1,30 @@
-# React + TypeScript + Vite
+# Phi-3 Mini local PWA app
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## Offline lifecycle
 
-Currently, two official plugins are available:
+1. **First online visit (bootstrap)**
+   - The PWA service worker is registered and caches the app shell assets.
+   - The app can then reload from cache even if the network drops later.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+2. **Model download / warmup**
+   - The first inference triggers WebLLM initialization and model artifact download.
+   - Artifacts are cached in browser-managed storage (IndexedDB/Cache via WebLLM).
+   - Once downloaded, the model is available for offline inference.
 
-## React Compiler
+3. **Offline usage**
+   - App shell still loads from service worker cache.
+   - If model artifacts are already cached, inference continues fully offline.
+   - If artifacts are missing, the UI explains that one online download is required.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+4. **Corruption recovery**
+   - If model cache corruption is detected during initialization (cache/IndexedDB errors),
+     the app clears corrupted model artifacts and prompts a clean re-download.
+   - Model metadata is also sanitized on load to recover from invalid local storage state.
 
-## Expanding the ESLint configuration
+5. **Storage and quota messaging**
+   - Settings displays browser storage usage/quota estimates when available.
+   - A warning appears when usage is very high to explain likely download/cache failures.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+6. **Unsupported browser handling**
+   - On startup, required capabilities are checked (WebGPU, workers, service worker, IndexedDB, storage estimate API).
+   - If missing, the app shows a dedicated unsupported-browser page listing missing features.
