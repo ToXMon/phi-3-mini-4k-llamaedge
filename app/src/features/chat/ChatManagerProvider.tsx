@@ -207,7 +207,7 @@ export function ChatManagerProvider({ children }: { children: ReactNode }) {
             : null
         const indeterminate = progress === null || progress <= 0
         const etaSeconds =
-          !indeterminate && report.timeElapsed > 0 && progress && progress > 0 && progress < 100
+          !indeterminate && report.timeElapsed > 0 && progress > 0 && progress < 100
             ? Math.max(0, Math.round((report.timeElapsed * (100 - progress)) / progress))
             : null
         setStatus(stage.status)

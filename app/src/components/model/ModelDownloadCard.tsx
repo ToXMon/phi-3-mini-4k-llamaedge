@@ -27,6 +27,12 @@ function formatEta(seconds: number | null) {
   return `${minutes}m ${remaining}s remaining`
 }
 
+function formatProgressDetails(downloaded: string | null, total: string | null) {
+  if (downloaded && total) return `${downloaded} / ${total}`
+  if (downloaded) return `${downloaded} downloaded`
+  return 'Setup in progress…'
+}
+
 function statusLabel(status: ModelMetadata['downloadStatus']) {
   switch (status) {
     case 'checking-cache':
@@ -125,7 +131,7 @@ export default function ModelDownloadCard({
           <span style={{ width: `${progressValue}%` }} />
         </div>
         <div className={styles.progressDetails}>
-          <span>{downloaded && total ? `${downloaded} / ${total}` : downloaded ? `${downloaded} downloaded` : 'Setup in progress…'}</span>
+          <span>{formatProgressDetails(downloaded, total)}</span>
           <span>{eta ?? 'Estimated time remaining unavailable'}</span>
         </div>
       </div>
