@@ -1,6 +1,20 @@
 import { createContext, useContext } from 'react'
 import { MODELS } from './modelRegistry'
-import type { ModelMetadata } from './types'
+import type { DownloadStatus, ModelMetadata } from './types'
+
+export interface ModelLifecycleUpdate {
+  downloadStatus: DownloadStatus
+  progress?: number | null
+  downloadedBytes?: number | null
+  totalBytes?: number | null
+  etaSeconds?: number | null
+  stageLabel?: string | null
+  statusText?: string | null
+  indeterminate?: boolean
+  error?: string | null
+  cached?: boolean
+  needsRecovery?: boolean
+}
 
 export interface ModelManagerValue {
   models: typeof MODELS
@@ -8,6 +22,7 @@ export interface ModelManagerValue {
   downloadModel: () => Promise<void>
   deleteCachedModel: () => void
   clearDownloadError: () => void
+  updateLifecycle: (update: ModelLifecycleUpdate) => void
 }
 
 export const ModelManagerContext = createContext<ModelManagerValue | undefined>(undefined)

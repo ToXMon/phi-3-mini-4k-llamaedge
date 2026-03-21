@@ -9,6 +9,9 @@ export interface ChatMessage {
 
 export type ChatEngineStatus =
   | 'idle'
+  | 'checking-cache'
+  | 'not-downloaded'
+  | 'verifying'
   | 'initializing'
   | 'downloading'
   | 'ready'

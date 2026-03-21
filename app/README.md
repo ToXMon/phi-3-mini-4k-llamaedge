@@ -28,3 +28,13 @@
 6. **Unsupported browser handling**
    - On startup, required capabilities are checked (WebGPU, workers, service worker, IndexedDB, storage estimate API).
    - If missing, the app shows a dedicated unsupported-browser page listing missing features.
+
+## How offline model download works
+
+- The selected model is downloaded only when needed and stored in browser-managed storage (IndexedDB / Cache API via WebLLM).
+- First-run setup can take time because the app prepares runtime assets, downloads model weights, caches files, and initializes the model.
+- The UI surfaces lifecycle states end-to-end: `idle`, `checking-cache`, `not-downloaded`, `downloading`, `verifying`, `initializing`, `ready`, and `error`.
+- Download/setup progress uses real WebLLM init progress reports. When total byte size is unavailable, the UI switches to an indeterminate state and still shows setup activity.
+- Once setup reaches **Ready offline**, chat can continue without network access for subsequent sessions on the same browser profile/device.
+- If setup fails (network, quota, WebGPU init, invalid URL/config, or corrupted cache), the UI shows a readable error with retry and cache recovery controls.
+- Ensure enough local browser storage is available; low quota can prevent model download or cache updates.
