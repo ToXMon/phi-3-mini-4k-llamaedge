@@ -12,7 +12,13 @@ export default function Header({ onMenuClick, isMobile }: HeaderProps) {
   const { isOnline } = usePWA()
 
   const statusLabel =
-    status === 'initializing'
+    status === 'checking-cache'
+      ? 'Checking cache'
+      : status === 'not-downloaded'
+        ? 'Not downloaded'
+        : status === 'verifying'
+          ? 'Verifying'
+          : status === 'initializing'
       ? 'Initializing'
       : status === 'downloading'
         ? 'Downloading'
@@ -29,7 +35,9 @@ export default function Header({ onMenuClick, isMobile }: HeaderProps) {
       ? styles.statusReady
       : status === 'error'
         ? styles.statusError
-        : status === 'generating' || status === 'initializing' || status === 'downloading'
+        : status === 'not-downloaded'
+          ? styles.statusIdle
+          : status === 'generating' || status === 'initializing' || status === 'downloading' || status === 'checking-cache' || status === 'verifying'
           ? styles.statusDownloading
           : styles.statusIdle
 

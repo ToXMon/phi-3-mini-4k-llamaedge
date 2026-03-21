@@ -41,7 +41,7 @@ export default function SettingsPage() {
             <div className={styles.row}>
               <div className={styles.rowInfo}>
                 <span className={styles.rowLabel}>Model size</span>
-                <code className={styles.rowValue}>{model.size}</code>
+                <code className={styles.rowValue}>{model.estimatedSize}</code>
               </div>
             </div>
             <div className={styles.row}>

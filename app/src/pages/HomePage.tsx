@@ -1,7 +1,9 @@
 import { FormEvent, useMemo, useState } from 'react'
 import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
+import ModelDownloadCard from '../components/model/ModelDownloadCard'
 import { useChatManager } from '../features/chat/chatManagerContext'
+import { useModelManager } from '../features/models/modelManagerContext'
 import { usePWA } from '../hooks/usePWA'
 import styles from './HomePage.module.css'
 
@@ -12,10 +14,16 @@ function statusCopy(status: ReturnType<typeof useChatManager>['status']) {
   switch (status) {
     case 'idle':
       return 'Waiting for your first prompt'
+    case 'checking-cache':
+      return 'Checking local cache…'
+    case 'not-downloaded':
+      return 'Model not downloaded'
     case 'initializing':
       return 'Starting local inference engine…'
     case 'downloading':
       return 'Downloading model for offline use…'
+    case 'verifying':
+      return 'Verifying local model files…'
     case 'ready':
       return 'Ready for local chat'
     case 'generating':
@@ -31,8 +39,9 @@ function getStatusBadgeClass(
   status: ReturnType<typeof useChatManager>['status'],
   classes: Record<string, string>,
 ) {
-  if (status === 'initializing') return classes.badgeInitializing
+  if (status === 'initializing' || status === 'checking-cache' || status === 'verifying') return classes.badgeInitializing
   if (status === 'downloading') return classes.badgeDownloading
+  if (status === 'not-downloaded') return classes.badgeError
   if (status === 'ready') return classes.badgeReady
   if (status === 'generating') return classes.badgeGenerating
   if (status === 'error') return classes.badgeError
@@ -53,9 +62,16 @@ export default function HomePage() {
     canStop,
     isBusy,
   } = useChatManager()
+  const { models, metadata, downloadModel, deleteCachedModel, clearDownloadError } = useModelManager()
   const { isOnline } = usePWA()
   const [input, setInput] = useState('')
-  const isPreparing = status === 'initializing' || status === 'downloading'
+  const selectedModel = models.find((model) => model.id === metadata.modelId) ?? models[0]
+  const isPreparing =
+    status === 'checking-cache' ||
+    status === 'not-downloaded' ||
+    status === 'initializing' ||
+    status === 'downloading' ||
+    status === 'verifying'
   const isErrorState = status === 'error'
 
   const messageList = useMemo(
@@ -95,6 +111,14 @@ export default function HomePage() {
             Requires a modern browser with WebGPU support and enough device memory for Phi-3 Mini 4K.
           </p>
         </Card>
+
+        <ModelDownloadCard
+          model={selectedModel}
+          metadata={metadata}
+          onRetry={downloadModel}
+          onDelete={deleteCachedModel}
+          onClearError={clearDownloadError}
+        />
 
         <div className={styles.chatPanel}>
           <div className={styles.messages} role="log" aria-live="polite">

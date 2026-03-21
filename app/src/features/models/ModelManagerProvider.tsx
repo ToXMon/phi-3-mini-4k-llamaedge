@@ -1,17 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { getDefaultModel, MODELS } from './modelRegistry'
 import { getDefaultModelMetadata, loadModelMetadata, saveModelMetadata } from './modelStorage'
 import type { ModelMetadata } from './types'
-import { ModelManagerContext } from './modelManagerContext'
+import { ModelManagerContext, type ModelLifecycleUpdate } from './modelManagerContext'
 import { hasOfflineModelCache, recoverModelCache } from '../chat/webllmEngine'
-
-const PROGRESS_STEP = 8
-const PROGRESS_INTERVAL_MS = 250
 
 export function ModelManagerProvider({ children }: { children: ReactNode }) {
   const [metadata, setMetadata] = useState<ModelMetadata>(() => loadModelMetadata())
-  const timerRef = useRef<number | null>(null)
-  const unmountedRef = useRef(false)
 
   useEffect(() => {
     saveModelMetadata(metadata)
@@ -21,16 +16,32 @@ export function ModelManagerProvider({ children }: { children: ReactNode }) {
     let active = true
 
     const syncWithCache = async () => {
+      setMetadata((prev) => ({
+        ...prev,
+        downloadStatus: 'checking-cache',
+        stageLabel: 'checking local cache',
+        statusText: 'Checking whether model artifacts are already stored locally…',
+        indeterminate: true,
+        updatedAt: new Date().toISOString(),
+      }))
       const hasCache = await hasOfflineModelCache().catch(() => false)
       if (!active) return
       setMetadata((prev) => {
-        if (prev.cached === hasCache) return prev
         const hasError = prev.downloadStatus === 'error'
         return {
           ...prev,
           cached: hasCache,
-          downloadStatus: hasCache ? 'downloaded' : hasError ? 'error' : 'idle',
-          progress: hasCache ? 100 : 0,
+          downloadStatus: hasCache ? 'ready' : hasError ? 'error' : 'not-downloaded',
+          progress: hasCache ? 100 : null,
+          downloadedBytes: hasCache ? prev.downloadedBytes : null,
+          totalBytes: hasCache ? prev.totalBytes : null,
+          etaSeconds: null,
+          stageLabel: hasCache ? 'ready for offline chat' : 'not downloaded',
+          statusText: hasCache
+            ? 'Ready offline'
+            : 'Model is not downloaded yet. Start setup to cache it in this browser.',
+          indeterminate: !hasCache,
+          needsRecovery: !hasCache && prev.downloadStatus === 'error',
           updatedAt: new Date().toISOString(),
         }
       })
@@ -45,94 +56,85 @@ export function ModelManagerProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  useEffect(() => {
-    unmountedRef.current = false
-    return () => {
-      unmountedRef.current = true
-      if (timerRef.current !== null) {
-        window.clearInterval(timerRef.current)
-      }
-    }
-  }, [])
-
-  const clearTimer = useCallback(() => {
-    if (timerRef.current !== null) {
-      window.clearInterval(timerRef.current)
-      timerRef.current = null
-    }
-  }, [])
-
   const clearDownloadError = useCallback(() => {
     setMetadata((prev) => ({
       ...prev,
       error: null,
-      downloadStatus: prev.cached ? 'downloaded' : 'idle',
-      progress: prev.cached ? 100 : 0,
+      needsRecovery: false,
+      downloadStatus: prev.cached ? 'ready' : 'not-downloaded',
+      progress: prev.cached ? 100 : null,
+      stageLabel: prev.cached ? 'ready for offline chat' : 'not downloaded',
+      statusText: prev.cached ? 'Ready offline' : 'Model setup pending',
+      indeterminate: !prev.cached,
+      updatedAt: new Date().toISOString(),
+    }))
+  }, [])
+
+  const updateLifecycle = useCallback((update: ModelLifecycleUpdate) => {
+    setMetadata((prev) => ({
+      ...prev,
+      downloadStatus: update.downloadStatus,
+      progress: update.progress !== undefined ? update.progress : prev.progress,
+      downloadedBytes:
+        update.downloadedBytes !== undefined ? update.downloadedBytes : prev.downloadedBytes,
+      totalBytes: update.totalBytes !== undefined ? update.totalBytes : prev.totalBytes,
+      etaSeconds: update.etaSeconds !== undefined ? update.etaSeconds : prev.etaSeconds,
+      stageLabel: update.stageLabel !== undefined ? update.stageLabel : prev.stageLabel,
+      statusText: update.statusText !== undefined ? update.statusText : prev.statusText,
+      indeterminate:
+        update.indeterminate !== undefined
+          ? update.indeterminate
+          : update.progress === null
+            ? true
+            : prev.indeterminate,
+      error: update.error !== undefined ? update.error : prev.error,
+      cached: update.cached !== undefined ? update.cached : prev.cached,
+      needsRecovery: update.needsRecovery !== undefined ? update.needsRecovery : prev.needsRecovery,
       updatedAt: new Date().toISOString(),
     }))
   }, [])
 
   const downloadModel = useCallback(async () => {
-    clearTimer()
-    setMetadata((prev) => ({
-      ...prev,
-      downloadStatus: 'downloading',
+    updateLifecycle({
+      downloadStatus: 'initializing',
+      stageLabel: 'preparing download',
+      statusText: 'Preparing model setup…',
+      progress: null,
+      downloadedBytes: null,
+      totalBytes: null,
+      etaSeconds: null,
+      indeterminate: true,
       error: null,
-      progress: 0,
-      updatedAt: new Date().toISOString(),
-    }))
+      needsRecovery: false,
+    })
 
     try {
-      await new Promise<void>((resolve, reject) => {
-        timerRef.current = window.setInterval(() => {
-          if (unmountedRef.current) {
-            clearTimer()
-            reject(new Error('Download cancelled during unmount'))
-            return
-          }
-
-          if (!window.navigator.onLine) {
-            clearTimer()
-            setMetadata((prev) => ({
-              ...prev,
-              downloadStatus: 'error',
-              error: 'Network lost during download. Please retry.',
-              updatedAt: new Date().toISOString(),
-            }))
-            reject(new Error('Network lost during download. Please retry.'))
-            return
-          }
-
-          setMetadata((prev) => {
-            const nextProgress = Math.min(100, prev.progress + PROGRESS_STEP)
-            if (nextProgress >= 100) {
-              clearTimer()
-              resolve()
-              return {
-                ...prev,
-                downloadStatus: 'downloaded',
-                cached: true,
-                error: null,
-                progress: 100,
-                updatedAt: new Date().toISOString(),
-              }
-            }
-
-            return {
-              ...prev,
-              progress: nextProgress,
-              updatedAt: new Date().toISOString(),
-            }
-          })
-        }, PROGRESS_INTERVAL_MS)
+      await recoverModelCache()
+      updateLifecycle({
+        downloadStatus: 'not-downloaded',
+        stageLabel: 'not downloaded',
+        statusText: 'Model cache cleared. Send a message to start a fresh download.',
+        progress: null,
+        downloadedBytes: null,
+        totalBytes: null,
+        etaSeconds: null,
+        indeterminate: true,
+        cached: false,
       })
     } catch (error) {
-      console.error(error)
+      const message = error instanceof Error ? error.message : 'Failed to prepare model setup.'
+      console.error('model download preparation failed', error)
+      updateLifecycle({
+        downloadStatus: 'error',
+        error: message,
+        statusText: message,
+        stageLabel: 'setup failed',
+        indeterminate: true,
+      })
     }
-  }, [clearTimer])
+  }, [updateLifecycle])
 
   const deleteCachedModel = useCallback(() => {
-    clearTimer()
     void (async () => {
       try {
         await recoverModelCache()
@@ -140,19 +142,26 @@ export function ModelManagerProvider({ children }: { children: ReactNode }) {
         setMetadata({
           ...defaultMetadata,
           modelId: getDefaultModel().id,
+          downloadStatus: 'not-downloaded',
+          stageLabel: 'not downloaded',
+          statusText: 'Model cache deleted. Download again to use offline chat.',
+          indeterminate: true,
           updatedAt: new Date().toISOString(),
         })
       } catch (error) {
-        console.error(error)
+        console.error('failed to delete model cache', error)
         setMetadata((prev) => ({
           ...prev,
           downloadStatus: 'error',
+          stageLabel: 'setup failed',
+          statusText: 'Failed to clear cached model artifacts. Please retry.',
+          needsRecovery: true,
           error: 'Failed to clear cached model artifacts. Please retry.',
           updatedAt: new Date().toISOString(),
         }))
       }
     })()
-  }, [clearTimer])
+  }, [])
 
   const value = useMemo(() => {
     return {
@@ -161,8 +170,9 @@ export function ModelManagerProvider({ children }: { children: ReactNode }) {
       downloadModel,
       deleteCachedModel,
       clearDownloadError,
+      updateLifecycle,
     }
-  }, [clearDownloadError, deleteCachedModel, downloadModel, metadata])
+  }, [clearDownloadError, deleteCachedModel, downloadModel, metadata, updateLifecycle])
 
   return <ModelManagerContext.Provider value={value}>{children}</ModelManagerContext.Provider>
 }
