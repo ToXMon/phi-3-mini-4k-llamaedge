@@ -2,6 +2,7 @@ import { FormEvent, useMemo, useState } from 'react'
 import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
 import ModelDownloadCard from '../components/model/ModelDownloadCard'
+import DebugPanel from '../components/debug/DebugPanel'
 import { useChatManager } from '../features/chat/chatManagerContext'
 import { useModelManager } from '../features/models/modelManagerContext'
 import { usePWA } from '../hooks/usePWA'
@@ -54,6 +55,7 @@ export default function HomePage() {
     status,
     progressText,
     error,
+    initStage,
     sendMessage,
     stopGeneration,
     regenerateLastAnswer,
@@ -119,6 +121,8 @@ export default function HomePage() {
           onDelete={deleteCachedModel}
           onClearError={clearDownloadError}
         />
+
+        {import.meta.env.DEV && <DebugPanel initStage={initStage} />}
 
         <div className={styles.chatPanel}>
           <div className={styles.messages} role="log" aria-live="polite">

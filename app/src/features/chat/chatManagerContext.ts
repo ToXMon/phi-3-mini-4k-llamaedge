@@ -9,6 +9,8 @@ export interface ChatManagerValue extends ChatState {
   isBusy: boolean
   canRegenerate: boolean
   canStop: boolean
+  /** Current initialization stage label, useful for debug panels. */
+  initStage: string
 }
 
 export const ChatManagerContext = createContext<ChatManagerValue | undefined>(undefined)
