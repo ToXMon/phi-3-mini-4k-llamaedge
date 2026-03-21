@@ -5,9 +5,14 @@ import type { ChatEngineStatus, ChatMessage } from './types'
 import { useModelManager } from '../models/modelManagerContext'
 import type { DownloadStatus } from '../models/types'
 import {
+  classifyInitError,
   generateStreamingReply,
+  getArtifactUrls,
+  getUserFacingMessage,
   getWebLLMEngine,
   hasOfflineModelCache,
+  logInitFailure,
+  MODEL_RECORD,
   recoverModelCache,
   stopStreaming,
   WEBLLM_MODEL_ID,
@@ -106,28 +111,6 @@ function inferSetupStage(
   return { status: 'initializing', stageLabel: 'preparing download' }
 }
 
-function explainError(caught: unknown) {
-  if (!(caught instanceof Error)) return 'Failed to initialize WebLLM.'
-  const message = caught.message
-  const lower = message.toLowerCase()
-  if (lower.includes('quota') || lower.includes('storage')) {
-    return `Browser storage quota exceeded. Free space and retry. (${message})`
-  }
-  if (lower.includes('webgpu') || lower.includes('adapter') || lower.includes('device')) {
-    return `WebGPU initialization failed. Use a WebGPU-capable browser/device and retry. (${message})`
-  }
-  if (lower.includes('fetch') || lower.includes('network') || lower.includes('failed to fetch')) {
-    return `Network fetch failed while downloading model artifacts. Check connection and retry. (${message})`
-  }
-  if (lower.includes('invalid') && lower.includes('url')) {
-    return `Invalid model URL or configuration detected. (${message})`
-  }
-  if (lower.includes('cache') || lower.includes('indexeddb') || lower.includes('corrupt')) {
-    return `Model cache appears corrupted. Clear cached model artifacts and retry. (${message})`
-  }
-  return message
-}
-
 export function ChatManagerProvider({ children }: { children: ReactNode }) {
   const { updateLifecycle } = useModelManager()
   const [messages, setMessages] = useState<ChatMessage[]>(() => loadChatMessages())
@@ -135,6 +118,7 @@ export function ChatManagerProvider({ children }: { children: ReactNode }) {
   const [progressText, setProgressText] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isBusy, setIsBusy] = useState(false)
+  const [initStage, setInitStage] = useState<string>('idle')
 
   const engineRef = useRef<Awaited<ReturnType<typeof getWebLLMEngine>> | null>(null)
   const isGeneratingRef = useRef(false)
@@ -149,6 +133,7 @@ export function ChatManagerProvider({ children }: { children: ReactNode }) {
     if (engineRef.current) return engineRef.current
 
     setStatus('checking-cache')
+    setInitStage('checking-cache')
     setProgressText('Preparing local WebGPU inference…')
     setError(null)
     updateLifecycle({
@@ -163,7 +148,7 @@ export function ChatManagerProvider({ children }: { children: ReactNode }) {
       error: null,
       needsRecovery: false,
     })
-    console.info('webllm selected model config', { modelId: WEBLLM_MODEL_ID })
+    console.info('webllm selected model config', { modelId: WEBLLM_MODEL_ID, artifactUrls: getArtifactUrls(MODEL_RECORD) })
 
     try {
       const hasCachedModel = await hasOfflineModelCache()
@@ -171,6 +156,7 @@ export function ChatManagerProvider({ children }: { children: ReactNode }) {
 
       if (hasCachedModel) {
         setStatus('initializing')
+        setInitStage('initializing')
         updateLifecycle({
           downloadStatus: 'initializing',
           cached: true,
@@ -181,6 +167,7 @@ export function ChatManagerProvider({ children }: { children: ReactNode }) {
         })
       } else {
         setStatus('not-downloaded')
+        setInitStage('not-downloaded')
         updateLifecycle({
           downloadStatus: 'not-downloaded',
           cached: false,
@@ -211,6 +198,7 @@ export function ChatManagerProvider({ children }: { children: ReactNode }) {
             ? Math.max(0, Math.round((report.timeElapsed * (100 - progress)) / progress))
             : null
         setStatus(stage.status)
+        setInitStage(stage.stageLabel)
         setProgressText(report.text)
         updateLifecycle({
           downloadStatus: stage.status,
@@ -228,6 +216,7 @@ export function ChatManagerProvider({ children }: { children: ReactNode }) {
 
       engineRef.current = engine
       setStatus('ready')
+      setInitStage('ready')
       setProgressText(null)
       setError(null)
       updateLifecycle({
@@ -246,10 +235,18 @@ export function ChatManagerProvider({ children }: { children: ReactNode }) {
       console.info('webllm init complete', { modelId: WEBLLM_MODEL_ID })
       return engine
     } catch (caught) {
-      const message = explainError(caught)
+      const errorClass = classifyInitError(caught)
+      const rawMessage = caught instanceof Error ? caught.message : String(caught)
+      const message = getUserFacingMessage(errorClass, rawMessage)
+      const artifactUrls = getArtifactUrls(MODEL_RECORD)
+
       setStatus('error')
+      setInitStage('error')
       setError(message)
-      console.error('webllm init failed', caught)
+
+      // Log full diagnostics: error, stack, adapter info, features, limits
+      void logInitFailure(caught, errorClass, WEBLLM_MODEL_ID, artifactUrls)
+
       updateLifecycle({
         downloadStatus: 'error',
         error: message,
@@ -376,6 +373,7 @@ export function ChatManagerProvider({ children }: { children: ReactNode }) {
     status,
     progressText,
     error,
+    initStage,
     sendMessage,
     stopGeneration,
     regenerateLastAnswer,
@@ -386,6 +384,7 @@ export function ChatManagerProvider({ children }: { children: ReactNode }) {
   }), [
     clearConversation,
     error,
+    initStage,
     isBusy,
     messages,
     progressText,
